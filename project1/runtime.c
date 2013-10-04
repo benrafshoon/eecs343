@@ -1,5 +1,5 @@
 /***************************************************************************
- *  Title: Runtime environment 
+ *  Title: Runtime environment
  * -------------------------------------------------------------------------
  *    Purpose: Runs commands
  *    Author: Stefan Birrer
@@ -91,15 +91,27 @@
     int total_task;
 	void RunCmd(commandT** cmd, int n)
 	{
-      int i;
-      total_task = n;
-      if(n == 1)
-          RunCmdFork(cmd[0], TRUE);
-      else{
-        RunCmdPipe(cmd[0], cmd[1]);
-        for(i = 0; i < n; i++)
-          ReleaseCmdT(&cmd[i]);
-      }
+        int i;
+        total_task = n;
+        if(n == 1) {
+            commandT* currentCommand = cmd[0];
+            printf("Command name: %s\n", currentCommand->argv[0]);
+            int argvCounter;
+            for(argvCounter = 1; argvCounter < currentCommand->argc; argvCounter++) {
+                printf("Argument %i: %s\n", argvCounter, currentCommand->argv[argvCounter]);
+            }
+            if(currentCommand->bg) {
+                printf("Background\n");
+            }
+            RunCmdFork(cmd[0], TRUE);
+        }
+
+        else {
+            RunCmdPipe(cmd[0], cmd[1]);
+            for(i = 0; i < n; i++) {
+                ReleaseCmdT(&cmd[i]);
+            }
+        }
 	}
 
 	void RunCmdFork(commandT* cmd, bool fork)
@@ -185,7 +197,7 @@ static bool ResolveExternalCmd(commandT* cmd)
     if(stat(buf, &fs) >= 0){
       if(S_ISDIR(fs.st_mode) == 0)
 	if(access(buf,X_OK) == 0){/*Whether it's an executable or the user has required permisson to run it*/
-	  cmd->name = strdup(buf); 
+	  cmd->name = strdup(buf);
 	  return TRUE;
 	}
     }
@@ -193,16 +205,16 @@ static bool ResolveExternalCmd(commandT* cmd)
   return FALSE; /*The command is not found or the user don't have enough priority to run.*/
 }
 
-	static void Exec(commandT* cmd, bool forceFork)
+    static void Exec(commandT* cmd, bool forceFork)
 	{
 	}
 
-        static bool IsBuiltIn(char* cmd)
-        {
-        	return FALSE;     
-        }
+    static bool IsBuiltIn(char* cmd)
+    {
+        return FALSE;
+    }
 
-   
+
 	static void RunBuiltInCmd(commandT* cmd)
 	{
 	}

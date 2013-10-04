@@ -24,8 +24,8 @@
 	#include <assert.h>
 	#include <stdlib.h>
 	#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
+    #include <string.h>
+    #include <unistd.h>
   /************Private include**********************************************/
 	#include "interpreter.h"
 	#include "io.h"
@@ -43,10 +43,10 @@
 	} stringL;
 
 /*Parse a single word from the param. Get rid of '"' or '''*/
-char* single_param(char *st){
-  int quot1 = 0,quot2 = 0, start = 0;
-  char *t = st;
-  static int idx;
+    char* single_param(char *st){
+    int quot1 = 0,quot2 = 0, start = 0;
+    char *t = st;
+    static int idx;
 
   idx = 0;
   while(1){
@@ -95,7 +95,7 @@ void parser_single(char *c, int sz, commandT** cd, int bg)
       else quot2 = 1;
     }
     if(c[i] == '<' && quot1 != 1 && quot2 != 1){
-      if(cmd_length == sz) cmd_length = i; 
+      if(cmd_length == sz) cmd_length = i;
       while(i < (sz - 1) && c[i + 1] == ' ') i++;
       in = &(c[i+1]);
     }

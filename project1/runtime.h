@@ -1,5 +1,5 @@
 /***************************************************************************
- *  Title: Runtime environment 
+ *  Title: Runtime environment
  * -------------------------------------------------------------------------
  *    Purpose: Runs commands
  *    Author: Stefan Birrer
@@ -56,9 +56,11 @@
 	typedef struct command_t
 	{
       char* name;
-      char *cmdline;
-      char *redirect_in, *redirect_out;
-      int is_redirect_in, is_redirect_out;
+      char* cmdline;
+      char* redirect_in;
+      char* redirect_out;
+      int is_redirect_in;
+      int is_redirect_out;
       int bg;
       int argc;
       char* argv[];
@@ -67,16 +69,16 @@
   /************Global Variables*********************************************/
 
 	/***********************************************************************
-	 *  Title: Force a program exit 
+	 *  Title: Force a program exit
 	 * ---------------------------------------------------------------------
 	 *    Purpose: Signals that a program exit is required
 	 ***********************************************************************/
 	VAREXTERN(bool forceExit, FALSE);
-	
+
   /************Function Prototypes******************************************/
-	
+
 	/***********************************************************************
-	 *  Title: Runs a command 
+	 *  Title: Runs a command
 	 * ---------------------------------------------------------------------
 	 *    Purpose: Runs a command.
 	 *    Input: a command structure
@@ -130,16 +132,16 @@
 	EXTERN void StopFgProc();
 
 	/***********************************************************************
-	 *  Title: Create a command structure 
+	 *  Title: Create a command structure
 	 * ---------------------------------------------------------------------
 	 *    Purpose: Creates a command structure.
 	 *    Input: the number of arguments
 	 *    Output: the command structure
 	 ***********************************************************************/
 	EXTERN commandT* CreateCmdT(int);
-	
+
 	/***********************************************************************
-	 *  Title: Release a command structure 
+	 *  Title: Release a command structure
 	 * ---------------------------------------------------------------------
 	 *    Purpose: Frees the allocated memory of a command structure.
 	 *    Input: the command structure
@@ -148,7 +150,7 @@
 	EXTERN void ReleaseCmdT(commandT**);
 
 	/***********************************************************************
-	 *  Title: Get the current working directory 
+	 *  Title: Get the current working directory
 	 * ---------------------------------------------------------------------
 	 *    Purpose: Gets the current working directory.
 	 *    Input: void
@@ -157,7 +159,7 @@
 	EXTERN char* getCurrentWorkingDir();
 
 	/***********************************************************************
-	 *  Title: Get user name 
+	 *  Title: Get user name
 	 * ---------------------------------------------------------------------
 	 *    Purpose: Gets user name logged in on the controlling terminal.
 	 *    Input: void
@@ -166,14 +168,14 @@
 	EXTERN char* getLogin();
 
 	/***********************************************************************
-	 *  Title: Check the jobs 
+	 *  Title: Check the jobs
 	 * ---------------------------------------------------------------------
 	 *    Purpose: Checks the status of the background jobs.
 	 *    Input: void
-	 *    Output: void 
+	 *    Output: void
 	 ***********************************************************************/
 	EXTERN void CheckJobs();
-	
+
   /************External Declaration*****************************************/
 
 /**************Definition***************************************************/

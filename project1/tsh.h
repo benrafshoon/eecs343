@@ -1,7 +1,7 @@
 /***************************************************************************
- *  Title: MySimpleShell 
+ *  Title: MySimpleShell
  * -------------------------------------------------------------------------
- *    Purpose: A simple shell implementation 
+ *    Purpose: A simple shell implementation
  *    Author: Stefan Birrer
  *    Version: $Revision: 1.1 $
  *    Last Modification: $Date: 2005/10/13 05:24:59 $
@@ -39,7 +39,7 @@
      */
 	#undef EXTERN
 	#ifdef __MYSS_IMPL__
-		#define EXTERN 
+		#define EXTERN
 	#else
 		#define EXTERN extern
 	#endif
