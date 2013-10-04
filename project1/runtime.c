@@ -207,19 +207,42 @@ static bool ResolveExternalCmd(commandT* cmd)
 
     static void Exec(commandT* cmd, bool forceFork)
 	{
-	    int newPID = fork();
-	    if(newPID < 0)
-	    {
-	        printf("Error: could not create new process\n");
-	    }
-	    else if(newPID == 0)
-	    {
-	        printf("This is in the new process\n");
-	        execvp(cmd->argv[0], cmd->argv);
-
+	    if(cmd->bg) {
+	        printf("Background processes not yet implemented\n");
 	    } else {
-	        printf("New process created with pid=%i\n", newPID);
+            int newPID = fork();
+            if(newPID < 0)
+            {
+                printf("Error: could not create new process\n");
+            }
+            else if(newPID == 0)
+            {
+                newPID = getpid();
+                printf("Beginning execution of process pid=%i\n", newPID);
+                execvp(cmd->argv[0], cmd->argv);
+
+            } else {
+                //New foreground process
+                int status;
+                printf("New process created with pid=%i\n", newPID);
+                wait(&status);
+                if(WIFEXITED(status)) {
+                    printf("Child process returned %i\n", WEXITSTATUS(status));
+                }
+                if(WIFSIGNALED(status)) {
+                    switch(WTERMSIG(status)) {
+                        case SIGINT:
+                            printf("Child process return because of SIGINT\n");
+                            break;
+                        default:
+                            printf("Child process returned because of signal %i\n", WTERMSIG(status));
+                            break;
+                    }
+
+                }
+            }
 	    }
+
 	}
 
     static bool IsBuiltIn(char* cmd)

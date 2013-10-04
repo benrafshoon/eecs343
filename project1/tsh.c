@@ -33,7 +33,8 @@
   /************System include***********************************************/
 	#include <stdlib.h>
 	#include <signal.h>
-        #include <string.h>
+    #include <string.h>
+    #include <stdio.h>
 
   /************Private include**********************************************/
 	#include "tsh.h"
@@ -71,7 +72,7 @@ int main (int argc, char *argv[])
 
 	while (!forceExit) /* repeat forever */
 	{
-
+        printf("eecs343-tsh> ");
 		/* read command line */
 		getCommandLine(&cmdLine, BUFSIZE);
 
@@ -87,7 +88,7 @@ int main (int argc, char *argv[])
 		/* interpret command and line
 		 * includes executing of commands */
 		Interpret(cmdLine);
-        printf("eecs343-tsh> ");
+
 	}
 
 	/* shell termination */
