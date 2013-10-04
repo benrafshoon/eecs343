@@ -207,6 +207,19 @@ static bool ResolveExternalCmd(commandT* cmd)
 
     static void Exec(commandT* cmd, bool forceFork)
 	{
+	    int newPID = fork();
+	    if(newPID < 0)
+	    {
+	        printf("Error: could not create new process\n");
+	    }
+	    else if(newPID == 0)
+	    {
+	        printf("This is in the new process\n");
+	        execvp(cmd->argv[0], cmd->argv);
+
+	    } else {
+	        printf("New process created with pid=%i\n", newPID);
+	    }
 	}
 
     static bool IsBuiltIn(char* cmd)

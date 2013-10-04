@@ -1,7 +1,7 @@
 /***************************************************************************
- *  Title: MySimpleShell 
+ *  Title: MySimpleShell
  * -------------------------------------------------------------------------
- *    Purpose: A simple shell implementation 
+ *    Purpose: A simple shell implementation
  *    Author: Stefan Birrer
  *    Version: $Revision: 1.1 $
  *    Last Modification: $Date: 2005/10/13 05:24:59 $
@@ -53,7 +53,7 @@
   /************Global Variables*********************************************/
 
   /************Function Prototypes******************************************/
-	/* handles SIGINT and SIGSTOP signals */	
+	/* handles SIGINT and SIGSTOP signals */
 	static void sig(int);
 
   /************External Declaration*****************************************/
@@ -64,13 +64,14 @@ int main (int argc, char *argv[])
 {
 	/* Initialize command buffer */
 	char* cmdLine = malloc(sizeof(char*)*BUFSIZE);
-	
+
 	/* shell initialization */
 	if (signal(SIGINT, sig) == SIG_ERR) PrintPError("SIGINT");
 	if (signal(SIGTSTP, sig) == SIG_ERR) PrintPError("SIGTSTP");
 
 	while (!forceExit) /* repeat forever */
 	{
+
 		/* read command line */
 		getCommandLine(&cmdLine, BUFSIZE);
 
@@ -82,11 +83,11 @@ int main (int argc, char *argv[])
 
 		/* checks the status of background jobs */
 		CheckJobs();
-		
+
 		/* interpret command and line
 		 * includes executing of commands */
 		Interpret(cmdLine);
-
+        printf("eecs343-tsh> ");
 	}
 
 	/* shell termination */
