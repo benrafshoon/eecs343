@@ -54,8 +54,6 @@
   /************Global Variables*********************************************/
 
   /************Function Prototypes******************************************/
-	/* handles SIGINT and SIGSTOP signals */
-	static void sig(int);
 
   /************External Declaration*****************************************/
 
@@ -67,8 +65,8 @@ int main (int argc, char *argv[])
 	char* cmdLine = malloc(sizeof(char*)*BUFSIZE);
 
 	/* shell initialization */
-	if (signal(SIGINT, sig) == SIG_ERR) PrintPError("SIGINT");
-	if (signal(SIGTSTP, sig) == SIG_ERR) PrintPError("SIGTSTP");
+	if (signal(SIGINT, &SignalHandler) == SIG_ERR) PrintPError("SIGINT");
+	if (signal(SIGTSTP, &SignalHandler) == SIG_ERR) PrintPError("SIGTSTP");
 
 	while (!forceExit) /* repeat forever */
 	{
@@ -96,7 +94,4 @@ int main (int argc, char *argv[])
 	return 0;
 } /* end main */
 
-static void sig(int signo)
-{
-}
 

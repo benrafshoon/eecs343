@@ -72,6 +72,9 @@
 	/* the pids of the background processes */
 	bgjobL *bgjobs = NULL;
 
+	pid_t foregroundPID = -1;
+
+
   /************Function Prototypes******************************************/
 	/* run command */
 	static void RunCmdFork(commandT*, bool);
@@ -210,36 +213,46 @@ static bool ResolveExternalCmd(commandT* cmd)
 	    if(cmd->bg) {
 	        printf("Background processes not yet implemented\n");
 	    } else {
-            int newPID = fork();
+            pid_t newPID = fork();
             if(newPID < 0)
             {
                 printf("Error: could not create new process\n");
             }
             else if(newPID == 0)
             {
+                setpgid(0, 0);
                 newPID = getpid();
-                printf("Beginning execution of process pid=%i\n", newPID);
+                printf("Beginning execution of process %i\n", newPID);
                 execvp(cmd->argv[0], cmd->argv);
 
             } else {
-                //New foreground process
+                foregroundPID = newPID;
                 int status;
-                printf("New process created with pid=%i\n", newPID);
-                wait(&status);
-                if(WIFEXITED(status)) {
-                    printf("Child process returned %i\n", WEXITSTATUS(status));
-                }
-                if(WIFSIGNALED(status)) {
-                    switch(WTERMSIG(status)) {
-                        case SIGINT:
-                            printf("Child process return because of SIGINT\n");
-                            break;
-                        default:
-                            printf("Child process returned because of signal %i\n", WTERMSIG(status));
-                            break;
-                    }
+                printf("Foreground process %i created\n", foregroundPID);
+                pid_t terminatedPID = waitpid(-1, &status, WUNTRACED);
 
+                if(terminatedPID == foregroundPID) {
+                    if(WIFEXITED(status)) {
+                    printf("Foreground process %i returned %i\n", foregroundPID, WEXITSTATUS(status));
+                    }
+                    if(WIFSIGNALED(status)) {
+                        switch(WTERMSIG(status)) {
+                            case SIGINT:
+                                printf("Foreground process %i terminated due to uncaught SIGINT\n", foregroundPID);
+                                break;
+                            default:
+                                printf("Foreground process %i terminated due to uncaught signal %i\n", foregroundPID, WTERMSIG(status));
+                                break;
+                        }
+                    }
+                    if(WIFSTOPPED(status)) {
+                        printf("Foreground process %i stopped (not terminated) due to signal %i\n", foregroundPID, WSTOPSIG(status));
+                    }
+                    foregroundPID = -1;
+                } else {
+                    printf("%i exited\n", terminatedPID);
                 }
+
             }
 	    }
 
@@ -284,4 +297,24 @@ void ReleaseCmdT(commandT **cmd){
   for(i = 0; i < (*cmd)->argc; i++)
     if((*cmd)->argv[i] != NULL) free((*cmd)->argv[i]);
   free(*cmd);
+}
+
+void SignalHandler(int signalNumber) {
+    if(foregroundPID != -1) {
+        switch(signalNumber) {
+            case SIGTSTP:
+                printf("SIGTSP received, stopping (not terminating) process %i\n", foregroundPID);
+                killpg(foregroundPID, SIGSTOP);
+                break;
+            case SIGINT:
+                printf("SIGINT received, forwarding to process %i\n", foregroundPID);
+                killpg(foregroundPID, signalNumber);
+                break;
+            default:
+                printf("Unknown signal %i received\n", signalNumber);
+                break;
+        }
+    } else {
+        printf("No processes to forward signal to\n");
+    }
 }
