@@ -52,6 +52,7 @@
   /************Private include**********************************************/
 	#include "runtime.h"
 	#include "io.h"
+	#include "tsh.h"
 
   /************Defines and Typedefs*****************************************/
     /*  #defines and typedefs should have their names in all caps.
@@ -208,11 +209,18 @@ static bool ResolveExternalCmd(commandT* cmd)
   return FALSE; /*The command is not found or the user don't have enough priority to run.*/
 }
 
+    static inline int isForegroundProcessRunning() {
+        return foregroundPID != -1;
+    }
     static void Exec(commandT* cmd, bool forceFork)
 	{
 	    if(cmd->bg) {
 	        printf("Background processes not yet implemented\n");
 	    } else {
+	        sigset_t sigchld;
+	        sigemptyset(&sigchld);
+	        sigaddset(&sigchld, SIGCHLD);
+	        sigprocmask(SIG_BLOCK, &sigchld, NULL);
             pid_t newPID = fork();
             if(newPID < 0)
             {
@@ -220,39 +228,54 @@ static bool ResolveExternalCmd(commandT* cmd)
             }
             else if(newPID == 0)
             {
+                sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
                 setpgid(0, 0);
                 newPID = getpid();
                 printf("Beginning execution of process %i\n", newPID);
                 execvp(cmd->argv[0], cmd->argv);
 
             } else {
+                sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
                 foregroundPID = newPID;
-                int status;
                 printf("Foreground process %i created\n", foregroundPID);
-                pid_t terminatedPID = waitpid(-1, &status, WUNTRACED);
+                sigset_t signalsToWaitFor;
+                sigemptyset(&signalsToWaitFor);
+                sigaddset(&signalsToWaitFor, SIGCHLD);
+                while(isForegroundProcessRunning())
+                {
+                    printf("Foreground process running, shell waiting for sigchld\n");
+                    int signal;
+                    sigwait(&signalsToWaitFor, &signal);
+                    if(signal == SIGCHLD)
+                    {
+                        int status;
+                        pid_t terminatedPID = waitpid(-1, &status, WUNTRACED);
+                        if(terminatedPID == foregroundPID) {
+                            if(WIFEXITED(status)) {
+                            printf("Foreground process %i returned %i\n", foregroundPID, WEXITSTATUS(status));
+                            }
+                            if(WIFSIGNALED(status)) {
+                                switch(WTERMSIG(status)) {
+                                    case SIGINT:
+                                        printf("Foreground process %i terminated due to uncaught SIGINT\n", foregroundPID);
+                                        break;
+                                    default:
+                                        printf("Foreground process %i terminated due to uncaught signal %i\n", foregroundPID, WTERMSIG(status));
+                                        break;
+                                }
+                            }
+                            if(WIFSTOPPED(status)) {
+                                printf("Foreground process %i stopped (not terminated) due to signal %i\n", foregroundPID, WSTOPSIG(status));
+                            }
+                            foregroundPID = -1;
+                            //Foreground process terminated
 
-                if(terminatedPID == foregroundPID) {
-                    if(WIFEXITED(status)) {
-                    printf("Foreground process %i returned %i\n", foregroundPID, WEXITSTATUS(status));
-                    }
-                    if(WIFSIGNALED(status)) {
-                        switch(WTERMSIG(status)) {
-                            case SIGINT:
-                                printf("Foreground process %i terminated due to uncaught SIGINT\n", foregroundPID);
-                                break;
-                            default:
-                                printf("Foreground process %i terminated due to uncaught signal %i\n", foregroundPID, WTERMSIG(status));
-                                break;
+
+                        } else {
+                            printf("Background process pid=%i exited\n", terminatedPID);
                         }
                     }
-                    if(WIFSTOPPED(status)) {
-                        printf("Foreground process %i stopped (not terminated) due to signal %i\n", foregroundPID, WSTOPSIG(status));
-                    }
-                    foregroundPID = -1;
-                } else {
-                    printf("%i exited\n", terminatedPID);
                 }
-
             }
 	    }
 
@@ -310,11 +333,24 @@ void SignalHandler(int signalNumber) {
                 printf("SIGINT received, forwarding to process %i\n", foregroundPID);
                 killpg(foregroundPID, signalNumber);
                 break;
+            case SIGCHLD:
+                printf("Sigchld received in signal handler\n");
+                break;
             default:
                 printf("Unknown signal %i received\n", signalNumber);
                 break;
         }
     } else {
-        printf("No processes to forward signal to\n");
+        switch(signalNumber) {
+            case SIGCHLD:
+                printf("SIGCHLD received for background process\n");
+                int status;
+                pid_t terminatedPID = waitpid(-1, &status, WUNTRACED);
+                printf("Background process %i terminated\n", terminatedPID);
+                break;
+            default:
+                printf("Unknown signal %i received for background process\n", signalNumber);
+        }
+
     }
 }

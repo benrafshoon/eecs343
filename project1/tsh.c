@@ -52,7 +52,7 @@
 	#define BUFSIZE 80
 
   /************Global Variables*********************************************/
-
+    char* cmdLine;
   /************Function Prototypes******************************************/
 
   /************External Declaration*****************************************/
@@ -62,13 +62,22 @@
 int main (int argc, char *argv[])
 {
 	/* Initialize command buffer */
-	char* cmdLine = malloc(sizeof(char*)*BUFSIZE);
+	cmdLine = malloc(sizeof(char*)*BUFSIZE);
 
 	/* shell initialization */
-	if (signal(SIGINT, &SignalHandler) == SIG_ERR) PrintPError("SIGINT");
-	if (signal(SIGTSTP, &SignalHandler) == SIG_ERR) PrintPError("SIGTSTP");
+	if(signal(SIGINT, &SignalHandler) == SIG_ERR) PrintPError("SIGINT");
+	if(signal(SIGTSTP, &SignalHandler) == SIG_ERR) PrintPError("SIGTSTP");
+	if(signal(SIGCHLD, &SignalHandler) == SIG_ERR) PrintPError("SIGCHLD");
 
-	while (!forceExit) /* repeat forever */
+	foregroundReadLoop();
+
+	/* shell termination */
+	free(cmdLine);
+	return 0;
+} /* end main */
+
+void foregroundReadLoop() {
+    while (!forceExit) /* repeat forever */
 	{
         printf("eecs343-tsh> ");
 		/* read command line */
@@ -88,10 +97,4 @@ int main (int argc, char *argv[])
 		Interpret(cmdLine);
 
 	}
-
-	/* shell termination */
-	free(cmdLine);
-	return 0;
-} /* end main */
-
-
+}
