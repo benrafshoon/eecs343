@@ -101,10 +101,11 @@
 
 	static pid_t SetRunningBackgroundJob(int position, char running);
 
-	static void printJob(int position, pid_t pid, char running);
+	static void PrintJob(int position, pid_t pid, char running);
 
-	static void printBackgroundJobs();
+	static void PrintBackgroundJobs();
 
+    static void HandleBackgroundProcess();
 
   /************External Declaration*****************************************/
 
@@ -227,35 +228,35 @@ static bool ResolveExternalCmd(commandT* cmd)
     }
     static void Exec(commandT* cmd, bool forceFork)
 	{
-	    if(cmd->bg) {
-	        printf("Background processes not yet implemented\n");
-	    } else {
-	        sigset_t sigchld;
-	        sigemptyset(&sigchld);
-	        sigaddset(&sigchld, SIGCHLD);
-	        sigprocmask(SIG_BLOCK, &sigchld, NULL);
-            pid_t newPID = fork();
-            if(newPID < 0)
-            {
-                printf("Error: could not create new process\n");
-            }
-            else if(newPID == 0)
-            {
-                sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
-                setpgid(0, 0);
-                newPID = getpid();
-                printf("Beginning execution of process %i\n", newPID);
-                execvp(cmd->argv[0], cmd->argv);
+        sigset_t sigchld;
+        sigemptyset(&sigchld);
+        sigaddset(&sigchld, SIGCHLD);
+        sigprocmask(SIG_BLOCK, &sigchld, NULL);
+        pid_t newPID = fork();
+        if(newPID < 0)
+        {
+            printf("Error: could not create new process\n");
+        }
+        else if(newPID == 0)
+        {
+            sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
+            setpgid(0, 0);
+            newPID = getpid();
+            printf("Beginning execution of process %i\n", newPID);
+            execvp(cmd->argv[0], cmd->argv);
 
+        } else {
+            sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
+            printf("Foreground process %i created\n", foregroundPID);
+            sigset_t signalsToWaitFor;
+            sigemptyset(&signalsToWaitFor);
+            sigaddset(&signalsToWaitFor, SIGCHLD);
+            if(cmd->bg) {
+                printf("Adding job to background\n");
+                AddBackgroundJob(newPID, BACKGROUND_JOB_RUNNING);
             } else {
-                sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
                 foregroundPID = newPID;
-                printf("Foreground process %i created\n", foregroundPID);
-                sigset_t signalsToWaitFor;
-                sigemptyset(&signalsToWaitFor);
-                sigaddset(&signalsToWaitFor, SIGCHLD);
-                while(isForegroundProcessRunning())
-                {
+                while(isForegroundProcessRunning()) {
                     printf("Foreground process running, shell waiting for sigchld\n");
                     int signal;
                     sigwait(&signalsToWaitFor, &signal);
@@ -288,10 +289,12 @@ static bool ResolveExternalCmd(commandT* cmd)
 
                         } else {
                             printf("Background process pid=%i exited\n", terminatedPID);
+                            RemoveBackgroundJob(terminatedPID);
                         }
                     }
                 }
             }
+
 	    }
 
 	}
@@ -300,7 +303,7 @@ static bool ResolveExternalCmd(commandT* cmd)
 
 	static bool RunBuiltInCmd(commandT* cmd) {
 	    if(strcmp(cmd->argv[0], "jobs") == 0) {
-	        printBackgroundJobs();
+	        PrintBackgroundJobs();
 	        return TRUE;
 	    }
 	    return FALSE;
@@ -349,7 +352,7 @@ static int AddBackgroundJob(pid_t toAdd, char running) {
         backgroundJobListTail = newJob;
     }
     backgroundJobListSize++;
-    printBackgroundJobs();
+    PrintBackgroundJobs();
     return backgroundJobListSize;
 }
 
@@ -413,7 +416,7 @@ static pid_t SetRunningBackgroundJob(int position, char running) {
     }
 }
 
-static void printJob(int position, pid_t pid, char running) {
+static void PrintJob(int position, pid_t pid, char running) {
     printf("[%i] pid=%i ", position, pid);
     if(running) {
         printf("Running");
@@ -423,11 +426,11 @@ static void printJob(int position, pid_t pid, char running) {
     printf("\n");
 }
 
-static void printBackgroundJobs() {
+static void PrintBackgroundJobs() {
     BackgroundJob* job = backgroundJobListHead;
     int counter = 1;
     while(job != NULL) {
-        printJob(counter, job->pid, job->running);
+        PrintJob(counter, job->pid, job->running);
         job = job->next;
         counter++;
     }
@@ -457,7 +460,7 @@ void SignalHandler(int signalNumber) {
                 printf("SIGCHLD received for background process\n");
                 int status;
                 pid_t terminatedPID = waitpid(-1, &status, WUNTRACED);
-                printf("Background process %i terminated\n", terminatedPID);
+                printf("Background process %i exited\n", terminatedPID);
                 RemoveBackgroundJob(terminatedPID);
                 break;
             default:
@@ -465,4 +468,8 @@ void SignalHandler(int signalNumber) {
         }
 
     }
+}
+
+static void HandleBackgroundProcess() {
+
 }
