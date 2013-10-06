@@ -35,6 +35,8 @@
  *
  ***************************************************************************/
 	#define __RUNTIME_IMPL__
+	#define BACKGROUND_JOB_RUNNING 1
+	#define BACKGROUND_JOB_STOPPED 0
 
   /************System include***********************************************/
 	#include <assert.h>
@@ -65,13 +67,16 @@
 
 	#define NBUILTINCOMMANDS (sizeof BuiltInCommands / sizeof(char*))
 
-	typedef struct bgjob_l {
+	typedef struct _BackgroundJob {
 		pid_t pid;
-		struct bgjob_l* next;
-	} bgjobL;
+		struct _BackgroundJob* next;
+		char running;
+	} BackgroundJob;
 
 	/* the pids of the background processes */
-	bgjobL *bgjobs = NULL;
+	BackgroundJob* backgroundJobListHead = NULL;
+	BackgroundJob* backgroundJobListTail = NULL;
+	int backgroundJobListSize = 0;
 
 	pid_t foregroundPID = -1;
 
@@ -86,9 +91,21 @@
 	/* forks and runs a external program */
 	static void Exec(commandT*, bool);
 	/* runs a builtin command */
-	static void RunBuiltInCmd(commandT*);
-	/* checks whether a command is a builtin command */
-	static bool IsBuiltIn(char*);
+	static bool RunBuiltInCmd(commandT*);
+
+	static int AddBackgroundJob(pid_t toAdd, char running);
+
+	static pid_t RemoveBackgroundJob(pid_t toDelete);
+
+	static pid_t GetAtBackgroundJob(int position);
+
+	static pid_t SetRunningBackgroundJob(int position, char running);
+
+	static void printJob(int position, pid_t pid, char running);
+
+	static void printBackgroundJobs();
+
+
   /************External Declaration*****************************************/
 
 /**************Implementation***********************************************/
@@ -120,16 +137,12 @@
 
 	void RunCmdFork(commandT* cmd, bool fork)
 	{
-		if (cmd->argc<=0)
-			return;
-		if (IsBuiltIn(cmd->argv[0]))
-		{
-			RunBuiltInCmd(cmd);
+		if (cmd->argc<=0) {
+		    return;
 		}
-		else
-		{
-			RunExternalCmd(cmd, fork);
-		}
+        if(!RunBuiltInCmd(cmd)) {
+            RunExternalCmd(cmd, fork);
+        }
 	}
 
 	void RunCmdBg(commandT* cmd)
@@ -265,7 +278,9 @@ static bool ResolveExternalCmd(commandT* cmd)
                                 }
                             }
                             if(WIFSTOPPED(status)) {
+
                                 printf("Foreground process %i stopped (not terminated) due to signal %i\n", foregroundPID, WSTOPSIG(status));
+                                AddBackgroundJob(foregroundPID, BACKGROUND_JOB_STOPPED);
                             }
                             foregroundPID = -1;
                             //Foreground process terminated
@@ -281,18 +296,17 @@ static bool ResolveExternalCmd(commandT* cmd)
 
 	}
 
-    static bool IsBuiltIn(char* cmd)
-    {
-        return FALSE;
-    }
 
 
-	static void RunBuiltInCmd(commandT* cmd)
-	{
+	static bool RunBuiltInCmd(commandT* cmd) {
+	    if(strcmp(cmd->argv[0], "jobs") == 0) {
+	        printBackgroundJobs();
+	        return TRUE;
+	    }
+	    return FALSE;
 	}
 
-        void CheckJobs()
-	{
+    void CheckJobs() {
  	}
 
 
@@ -322,6 +336,103 @@ void ReleaseCmdT(commandT **cmd){
   free(*cmd);
 }
 
+static int AddBackgroundJob(pid_t toAdd, char running) {
+    BackgroundJob* newJob = (BackgroundJob* )malloc(sizeof(BackgroundJob));
+    newJob->pid = toAdd;
+    newJob->next = NULL;
+    newJob->running = running;
+    if(backgroundJobListHead == NULL) {
+        backgroundJobListHead = newJob;
+        backgroundJobListTail = newJob;
+    } else {
+        backgroundJobListTail->next = newJob;
+        backgroundJobListTail = newJob;
+    }
+    backgroundJobListSize++;
+    printBackgroundJobs();
+    return backgroundJobListSize;
+}
+
+static pid_t RemoveBackgroundJob(pid_t toDelete) {
+    BackgroundJob* job = backgroundJobListHead;
+    BackgroundJob* previousJob = NULL;
+    int jobNumber = 1;
+    while(job != NULL && job->pid != toDelete) {
+        previousJob = job;
+        job = job->next;
+        jobNumber++;
+    }
+    if(job == NULL) {
+        return -1;
+    }
+    if(job == backgroundJobListHead) {
+        backgroundJobListHead = job->next;
+    }
+    if(job == backgroundJobListTail) {
+        backgroundJobListTail = previousJob;
+    }
+    if(previousJob != NULL) {
+        previousJob->next = job->next;
+    }
+    backgroundJobListSize--;
+    free(job);
+    return toDelete;
+}
+static pid_t GetAtBackgroundJob(int position) {
+    BackgroundJob* job = backgroundJobListHead;
+    int i;
+    for(i = 1; i < position; i++) {
+        if(job == NULL) {
+            return -1;
+        } else {
+            job = job->next;
+        }
+    }
+    if(job == NULL) {
+        return -1;
+    } else {
+        return job->pid;
+    }
+}
+
+static pid_t SetRunningBackgroundJob(int position, char running) {
+    BackgroundJob* job = backgroundJobListHead;
+    int i;
+    for(i = 1; i < position; i++) {
+        if(job == NULL) {
+            return -1;
+        } else {
+            job = job->next;
+        }
+    }
+    if(job == NULL) {
+        return -1;
+    } else {
+        job->running = running;
+        return job->pid;
+    }
+}
+
+static void printJob(int position, pid_t pid, char running) {
+    printf("[%i] pid=%i ", position, pid);
+    if(running) {
+        printf("Running");
+    } else {
+        printf("Stopped");
+    }
+    printf("\n");
+}
+
+static void printBackgroundJobs() {
+    BackgroundJob* job = backgroundJobListHead;
+    int counter = 1;
+    while(job != NULL) {
+        printJob(counter, job->pid, job->running);
+        job = job->next;
+        counter++;
+    }
+}
+
 void SignalHandler(int signalNumber) {
     if(foregroundPID != -1) {
         switch(signalNumber) {
@@ -347,6 +458,7 @@ void SignalHandler(int signalNumber) {
                 int status;
                 pid_t terminatedPID = waitpid(-1, &status, WUNTRACED);
                 printf("Background process %i terminated\n", terminatedPID);
+                RemoveBackgroundJob(terminatedPID);
                 break;
             default:
                 printf("Unknown signal %i received for background process\n", signalNumber);
