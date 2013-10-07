@@ -289,21 +289,19 @@ static void Exec(commandT* cmd, bool forceFork)
 
         printf("Beginning execution of process %i\n", newPID);
         execvp(cmd->argv[0], cmd->argv);
-
     } else {
         sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
         printf("Process %i created\n", newPID);
         if(cmd->bg) {
             printf("Adding new process to background\n");
-            AddBackgroundJob(newPID, BACKGROUND_JOB_RUNNING);
+            int jobNumber = AddBackgroundJob(newPID, BACKGROUND_JOB_RUNNING);
+            PrintJob(jobNumber, newPID, BACKGROUND_JOB_RUNNING);
         } else {
             printf("New process running in foreground\n");
             foregroundPID = newPID;
             WaitForForegroundProcess();
         }
-
     }
-
 }
 
 static void WaitForForegroundProcess() {
