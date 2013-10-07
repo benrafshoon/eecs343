@@ -334,8 +334,7 @@ static void WaitForForegroundProcess() {
 	    }
 	    if(strcmp(cmd->argv[0], "fg") == 0) {
             if(cmd->argc < 2) {
-                printf("Must specify a job number to put in foreground\n");
-
+                MoveBackgroundJobToForeground(-1);
             } else {
                 MoveBackgroundJobToForeground(atoi(cmd->argv[1]));
             }
@@ -475,9 +474,18 @@ static void MoveBackgroundJobToForeground(int jobNumber) {
         printf("Somehow a foreground process %i is already running, this should never occur\n", foregroundPID);
         return;
     }
+    if(jobNumber == -1) {
+        if(backgroundJobListTail != NULL) {
+            jobNumber = backgroundJobListTail->jobNumber;
+        } else {
+            printf("No such job\n");
+            return;
+        }
+    }
     foregroundPID = RemoveBackgroundJobByJobNumber(jobNumber);
     if(foregroundPID == -1) {
         printf("No such job\n");
+        return;
     } else {
         killpg(foregroundPID, SIGCONT);
         printf("Moving task %i (pid %i) to foreground\n", jobNumber, foregroundPID);
