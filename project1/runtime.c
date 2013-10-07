@@ -148,6 +148,7 @@
 
 	void RunCmdBg(commandT* cmd)
 	{
+            RunCmdFork(cmd, FALSE);
 		// TODO
 	}
 
@@ -306,6 +307,22 @@ static bool ResolveExternalCmd(commandT* cmd)
 	        PrintBackgroundJobs();
 	        return TRUE;
 	    }
+            if(strcmp(cmd->argv[0], "bg") == 0) {
+                BackgroundJob* bgdjob = backgroundJobListHead;
+                if(cmd->argc < 2) {
+                    while(bgdjob->next != NULL) {
+                        bgdjob = bgdjob->next;
+                    }
+                }
+                else{
+                    int i;
+                    for(i = 1; i < (int)*cmd->argv[1]; i++) {
+                        bgdjob = bgdjob->next;
+                }
+                }
+                bgdjob->running = TRUE;
+                return TRUE;
+            }    
 	    return FALSE;
 	}
 
