@@ -123,7 +123,7 @@
 
 	static inline int IsForegroundProcessRunning();
 
-
+    static void ChangeDirectory(char* pathToNewDirectory);
 
   /************External Declaration*****************************************/
 
@@ -265,6 +265,7 @@ static bool ResolveExternalCmd(commandT* cmd)
             printf("Beginning execution of process %i\n", newPID);
             execvp(cmd->argv[0], cmd->argv);
 
+
         } else {
             sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
             printf("Process %i created\n", newPID);
@@ -280,6 +281,24 @@ static bool ResolveExternalCmd(commandT* cmd)
 	    }
 
 	}
+
+        printf("Beginning execution of process %i\n", newPID);
+        execvp(cmd->argv[0], cmd->argv);
+    } else {
+        sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
+        printf("Process %i created\n", newPID);
+        if(cmd->bg) {
+            printf("Adding new process to background\n");
+            int jobNumber = AddBackgroundJob(newPID, BACKGROUND_JOB_RUNNING);
+            PrintJob(jobNumber, newPID, BACKGROUND_JOB_RUNNING);
+        } else {
+            printf("New process running in foreground\n");
+            foregroundPID = newPID;
+            WaitForForegroundProcess();
+        }
+    }
+}
+
 
 static void WaitForForegroundProcess() {
     sigset_t signalsToWaitFor;
@@ -345,7 +364,7 @@ static void WaitForForegroundProcess() {
                     
                 }
                 return TRUE;
-            }    
+            }
 
 	    if(strcmp(cmd->argv[0], "fg") == 0) {
             if(cmd->argc < 2) {
@@ -356,6 +375,14 @@ static void WaitForForegroundProcess() {
             }
 
             return TRUE;
+	    }
+	    if(strcmp(cmd->argv[0], "cd") == 0) {
+	        if(cmd->argc >= 2) {
+	            ChangeDirectory(cmd->argv[1]);
+	        } else {
+	            ChangeDirectory(NULL);
+	        }
+	        return TRUE;
 	    }
 	    return FALSE;
 	}
@@ -561,4 +588,27 @@ void SignalHandler(int signalNumber) {
         }
 
     }
+}
+
+static void ChangeDirectory(char* pathToNewDirectory) {
+    if(pathToNewDirectory != NULL) {
+        if(strcmp(pathToNewDirectory, "~") == 0 || strstr(pathToNewDirectory, "~/") == pathToNewDirectory) {
+            char* home = getenv("HOME");
+            char* homeRelativePathToNewDirectory = (char *)malloc(sizeof(char) * (strlen(home) + strlen(pathToNewDirectory)));
+            strcpy(homeRelativePathToNewDirectory, home);
+            if(strlen(pathToNewDirectory) > 1) {
+                strcat(homeRelativePathToNewDirectory, pathToNewDirectory + 1);
+            }
+            if(chdir(homeRelativePathToNewDirectory) == -1) {
+                printf("Could not change directory to %s\n", homeRelativePathToNewDirectory);
+            }
+            free(homeRelativePathToNewDirectory);
+        } else {
+            if(chdir(pathToNewDirectory) == -1) {
+                printf("Could not change directory to %s\n", pathToNewDirectory);
+            }
+        }
+
+    }
+
 }
