@@ -242,69 +242,44 @@ static bool ResolveExternalCmd(commandT* cmd)
   return FALSE; /*The command is not found or the user don't have enough priority to run.*/
 }
 
-static inline int IsForegroundProcessRunning() {
-    return foregroundPID != -1;
-}
-
-static void Exec(commandT* cmd, bool forceFork)
-{
-    sigset_t sigchld;
-    sigemptyset(&sigchld);
-    sigaddset(&sigchld, SIGCHLD);
-    sigprocmask(SIG_BLOCK, &sigchld, NULL);
-    pid_t newPID = fork();
-    if(newPID < 0)
-    {
-        printf("Error: could not create new process\n");
+    static inline int IsForegroundProcessRunning() {
+        return foregroundPID != -1;
     }
-    else if(newPID == 0)
-    {
-        sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
-        setpgid(0, 0);
-        newPID = getpid();
 
-        if(cmd->is_redirect_out) {
-            printf("Redirecting output to %s\n", cmd->redirect_out);
-            int outputFileDescriptor = open(cmd->redirect_out, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
-            if(outputFileDescriptor == -1) {
-                printf("Could not redirect output to %s\n", cmd->redirect_out);
-                exit(1);
-            } else {
-                dup2(outputFileDescriptor, 1);
-                close(outputFileDescriptor);
-            }
+    static void Exec(commandT* cmd, bool forceFork)
+	{
+        sigset_t sigchld;
+        sigemptyset(&sigchld);
+        sigaddset(&sigchld, SIGCHLD);
+        sigprocmask(SIG_BLOCK, &sigchld, NULL);
+        pid_t newPID = fork();
+        if(newPID < 0)
+        {
+            printf("Error: could not create new process\n");
         }
+        else if(newPID == 0)
+        {
+            sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
+            setpgid(0, 0);
+            newPID = getpid();
+            printf("Beginning execution of process %i\n", newPID);
+            execvp(cmd->argv[0], cmd->argv);
 
-        if(cmd->is_redirect_in) {
-            printf("Redirecting input from %s\n", cmd->redirect_in);
-            int inputFileDescriptor = open(cmd->redirect_in, O_RDONLY);
-            if(inputFileDescriptor == -1) {
-                printf("Could not redirect input from %s\n", cmd->redirect_out);
-                exit(1);
-            } else {
-                dup2(inputFileDescriptor, 0);
-                close(inputFileDescriptor);
-            }
-        }
-
-        printf("Beginning execution of process %i\n", newPID);
-        execvp(cmd->argv[0], cmd->argv);
-
-    } else {
-        sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
-        printf("Process %i created\n", newPID);
-        if(cmd->bg) {
-            printf("Adding new process to background\n");
-            AddBackgroundJob(newPID, BACKGROUND_JOB_RUNNING);
         } else {
-            printf("New process running in foreground\n");
-            foregroundPID = newPID;
-            WaitForForegroundProcess();
-        }
+            sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
+            printf("Process %i created\n", newPID);
+            if(cmd->bg) {
+                printf("Adding new process to background\n");
+                AddBackgroundJob(newPID, BACKGROUND_JOB_RUNNING);
+            } else {
+                printf("New process running in foreground\n");
+                foregroundPID = newPID;
+                WaitForForegroundProcess();
+            }
 
-    }
+	    }
 
-}
+	}
 
 static void WaitForForegroundProcess() {
     sigset_t signalsToWaitFor;
@@ -360,25 +335,22 @@ static void WaitForForegroundProcess() {
 	    }
 
             if(strcmp(cmd->argv[0], "bg") == 0) {
-                BackgroundJob* bgdjob = backgroundJobListHead;
                 if(cmd->argc < 2) {
-                    while(bgdjob->next != NULL) {
-                        bgdjob = bgdjob->next;
+                    printf("Must specify a job number to put in background\n");
                     }
-                }
+                
                 else{
-                    int i;
-                    for(i = 1; i < (int)*cmd->argv[1]; i++) {
-                        bgdjob = bgdjob->next;
+                    int pID = SetRunningBackgroundJob(atoi(cmd->argv[1]), TRUE);
+                    killpg(pID,SIGCONT);
+                    
                 }
-                }
-                bgdjob->running = TRUE;
                 return TRUE;
             }    
 
 	    if(strcmp(cmd->argv[0], "fg") == 0) {
             if(cmd->argc < 2) {
-                MoveBackgroundJobToForeground(-1);
+                printf("Must specify a job number to put in foreground\n");
+
             } else {
                 MoveBackgroundJobToForeground(atoi(cmd->argv[1]));
             }
@@ -518,18 +490,9 @@ static void MoveBackgroundJobToForeground(int jobNumber) {
         printf("Somehow a foreground process %i is already running, this should never occur\n", foregroundPID);
         return;
     }
-    if(jobNumber == -1) {
-        if(backgroundJobListTail != NULL) {
-            jobNumber = backgroundJobListTail->jobNumber;
-        } else {
-            printf("No such job\n");
-            return;
-        }
-    }
     foregroundPID = RemoveBackgroundJobByJobNumber(jobNumber);
     if(foregroundPID == -1) {
         printf("No such job\n");
-        return;
     } else {
         killpg(foregroundPID, SIGCONT);
         printf("Moving task %i (pid %i) to foreground\n", jobNumber, foregroundPID);
