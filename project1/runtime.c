@@ -333,7 +333,7 @@ static void WaitForForegroundProcess() {
 	        PrintBackgroundJobs();
 	        return TRUE;
 	    }
-<<<<<<< HEAD
+
             if(strcmp(cmd->argv[0], "bg") == 0) {
                 BackgroundJob* bgdjob = backgroundJobListHead;
                 if(cmd->argc < 2) {
@@ -350,7 +350,7 @@ static void WaitForForegroundProcess() {
                 bgdjob->running = TRUE;
                 return TRUE;
             }    
-=======
+
 	    if(strcmp(cmd->argv[0], "fg") == 0) {
             if(cmd->argc < 2) {
                 printf("Must specify a job number to put in foreground\n");
@@ -361,7 +361,6 @@ static void WaitForForegroundProcess() {
 
             return TRUE;
 	    }
->>>>>>> 68687831e255811f2945567a08d45e3a09efa556
 	    return FALSE;
 	}
 
