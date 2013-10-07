@@ -123,7 +123,7 @@
 
 	static inline int IsForegroundProcessRunning();
 
-
+    static void ChangeDirectory(char* pathToNewDirectory);
 
   /************External Declaration*****************************************/
 
@@ -374,7 +374,7 @@ static void WaitForForegroundProcess() {
                 }
                 bgdjob->running = TRUE;
                 return TRUE;
-            }    
+            }
 
 	    if(strcmp(cmd->argv[0], "fg") == 0) {
             if(cmd->argc < 2) {
@@ -384,6 +384,14 @@ static void WaitForForegroundProcess() {
             }
 
             return TRUE;
+	    }
+	    if(strcmp(cmd->argv[0], "cd") == 0) {
+	        if(cmd->argc >= 2) {
+	            ChangeDirectory(cmd->argv[1]);
+	        } else {
+	            ChangeDirectory(NULL);
+	        }
+	        return TRUE;
 	    }
 	    return FALSE;
 	}
@@ -598,4 +606,27 @@ void SignalHandler(int signalNumber) {
         }
 
     }
+}
+
+static void ChangeDirectory(char* pathToNewDirectory) {
+    if(pathToNewDirectory != NULL) {
+        if(strcmp(pathToNewDirectory, "~") == 0 || strstr(pathToNewDirectory, "~/") == pathToNewDirectory) {
+            char* home = getenv("HOME");
+            char* homeRelativePathToNewDirectory = (char *)malloc(sizeof(char) * (strlen(home) + strlen(pathToNewDirectory)));
+            strcpy(homeRelativePathToNewDirectory, home);
+            if(strlen(pathToNewDirectory) > 1) {
+                strcat(homeRelativePathToNewDirectory, pathToNewDirectory + 1);
+            }
+            if(chdir(homeRelativePathToNewDirectory) == -1) {
+                printf("Could not change directory to %s\n", homeRelativePathToNewDirectory);
+            }
+            free(homeRelativePathToNewDirectory);
+        } else {
+            if(chdir(pathToNewDirectory) == -1) {
+                printf("Could not change directory to %s\n", pathToNewDirectory);
+            }
+        }
+
+    }
+
 }
