@@ -41,6 +41,7 @@
 	#include "io.h"
 	#include "interpreter.h"
 	#include "runtime.h"
+	#include "jobs.h"
 
   /************Defines and Typedefs*****************************************/
     /*  #defines and typedefs should have their names in all caps.
@@ -89,12 +90,11 @@ void foregroundReadLoop() {
           continue;
         }
 
-		/* checks the status of background jobs */
-		CheckJobs();
-
 		/* interpret command and line
 		 * includes executing of commands */
 		Interpret(cmdLine);
+
+		PrintAndRemoveDoneJobs();
 
 	}
 }

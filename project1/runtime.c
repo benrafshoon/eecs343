@@ -35,8 +35,6 @@
  *
  ***************************************************************************/
 	#define __RUNTIME_IMPL__
-	#define BACKGROUND_JOB_RUNNING 1
-	#define BACKGROUND_JOB_STOPPED 0
 
   /************System include***********************************************/
 	#include <assert.h>
@@ -55,6 +53,7 @@
 	#include "runtime.h"
 	#include "io.h"
 	#include "tsh.h"
+	#include "jobs.h"
 
   /************Defines and Typedefs*****************************************/
     /*  #defines and typedefs should have their names in all caps.
@@ -66,20 +65,6 @@
   /************Global Variables*********************************************/
 
 	#define NBUILTINCOMMANDS (sizeof BuiltInCommands / sizeof(char*))
-
-	typedef struct _BackgroundJob {
-		pid_t pid;
-		int jobNumber;
-		struct _BackgroundJob* next;
-		char running;
-	} BackgroundJob;
-
-	/* the pids of the background processes */
-	BackgroundJob* backgroundJobListHead = NULL;
-    BackgroundJob* backgroundJobListTail = NULL;
-
-	pid_t foregroundPID = -1;
-
 
   /************Function Prototypes******************************************/
 	/* run command */
@@ -93,35 +78,9 @@
 	/* runs a builtin command */
 	static bool RunBuiltInCmd(commandT*);
 
-    //Adds a process to the end of list of background processes.  The job number is assigned to be
-    //the current largest job number + 1
-	static int AddBackgroundJob(pid_t toAdd, char running);
-
-    //Removes the background job specified by pid toDelete from the list of background jobs
-    //On success, returns the pid toDelete.  On fail, returns -1
-	static pid_t RemoveBackgroundJobByPID(pid_t pidToDelete);
-
-    //Removes the background job specified by jobNumber from the list of background jobs
-    //On success, returns the pid of the job.  On fail, returns -1
-    static pid_t RemoveBackgroundJobByJobNumber(int jobNumberToDelete);
-
-    //Returns the pid of the background job specified by jobNumber.  On fail, returns -1
-	static pid_t GetBackgroundJobByJobNumber(int jobNumber);
-
-    //Sets the running status of the job specified by jobNumber.  On fail, returns -1
-    //On success, returns the pid of the job specified by jobNumber
-	static pid_t SetRunningBackgroundJob(int jobNumber, char running);
-
-	static void PrintJob(int jobNumber, pid_t pid, char running);
-
-	static void PrintBackgroundJobs();
-
-
 	static void MoveBackgroundJobToForeground(int jobNumber);
 
 	static void WaitForForegroundProcess();
-
-	static inline int IsForegroundProcessRunning();
 
     static void ChangeDirectory(char* pathToNewDirectory);
 
@@ -135,13 +94,13 @@
         total_task = n;
         if(n == 1) {
             commandT* currentCommand = cmd[0];
-            printf("Command name: %s\n", currentCommand->argv[0]);
+            //printf("Command name: %s\n", currentCommand->argv[0]);
             int argvCounter;
             for(argvCounter = 1; argvCounter < currentCommand->argc; argvCounter++) {
-                printf("Argument %i: %s\n", argvCounter, currentCommand->argv[argvCounter]);
+            //    printf("Argument %i: %s\n", argvCounter, currentCommand->argv[argvCounter]);
             }
             if(currentCommand->bg) {
-                printf("Background\n");
+            //    printf("Background\n");
             }
             RunCmdFork(cmd[0], TRUE);
         }
@@ -242,16 +201,12 @@ static bool ResolveExternalCmd(commandT* cmd)
   return FALSE; /*The command is not found or the user don't have enough priority to run.*/
 }
 
-static inline int IsForegroundProcessRunning() {
-    return foregroundPID != -1;
-}
-
 static void Exec(commandT* cmd, bool forceFork)
 {
     sigset_t sigchld;
     sigemptyset(&sigchld);
     sigaddset(&sigchld, SIGCHLD);
-    sigprocmask(SIG_BLOCK, &sigchld, NULL);
+    //sigprocmask(SIG_BLOCK, &sigchld, NULL);
     pid_t newPID = fork();
     if(newPID < 0)
     {
@@ -259,7 +214,7 @@ static void Exec(commandT* cmd, bool forceFork)
     }
     else if(newPID == 0)
     {
-        sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
+        //sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
         setpgid(0, 0);
         newPID = getpid();
 
@@ -290,61 +245,75 @@ static void Exec(commandT* cmd, bool forceFork)
         printf("Beginning execution of process %i\n", newPID);
         execvp(cmd->argv[0], cmd->argv);
     } else {
-        sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
+        //sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
         printf("Process %i created\n", newPID);
         if(cmd->bg) {
             printf("Adding new process to background\n");
-            int jobNumber = AddBackgroundJob(newPID, BACKGROUND_JOB_RUNNING);
-            PrintJob(jobNumber, newPID, BACKGROUND_JOB_RUNNING);
+            int jobNumber = AddJob(newPID, JOB_RUNNING_BACKGROUND);
+            PrintJob(jobNumber, newPID, JOB_RUNNING_BACKGROUND);
         } else {
             printf("New process running in foreground\n");
-            foregroundPID = newPID;
+            int jobNumber = AddJob(newPID, JOB_RUNNING_FOREGROUND);
+            PrintJob(jobNumber, newPID, JOB_RUNNING_FOREGROUND);
             WaitForForegroundProcess();
         }
     }
 }
 
+static void MoveBackgroundJobToForeground(int jobNumber) {
+    if(IsForegroundProcessRunning()) {
+        printf("Somehow a foreground process %i is already running, this should never occur\n", GetForegroundJob());
+        return;
+    }
+    if(jobNumber == -1) {
+        printf("No such job\n");
+            return;
+    }
+    pid_t foregroundPID = SetJobRunningStateByJobNumber(jobNumber, JOB_RUNNING_FOREGROUND);
+    if(foregroundPID == -1) {
+        printf("No such job\n");
+        return;
+    } else {
+        killpg(foregroundPID, SIGCONT);
+        printf("Moving task %i (pid %i) to foreground\n", jobNumber, foregroundPID);
+        WaitForForegroundProcess();
+    }
+
+}
+
 static void WaitForForegroundProcess() {
-    sigset_t signalsToWaitFor;
-    sigemptyset(&signalsToWaitFor);
-    sigaddset(&signalsToWaitFor, SIGCHLD);
-
-    while(foregroundPID != -1) {
+    while(IsForegroundProcessRunning()) {
         printf("Foreground process running, shell waiting for sigchld\n");
-        int signal;
-        sigprocmask(SIG_BLOCK, &signalsToWaitFor, NULL);
-        sigwait(&signalsToWaitFor, &signal);
-        sigprocmask(SIG_UNBLOCK, &signalsToWaitFor, NULL);
-        if(signal == SIGCHLD) {
-            int status;
-            pid_t terminatedPID = waitpid(-1, &status, WUNTRACED);
-            printf("SIGCHLD received for %i\n", terminatedPID);
-            if(terminatedPID == foregroundPID) {
-                if(WIFEXITED(status)) {
+        int status;
+        pid_t terminatedPID = waitpid(-1, &status, WUNTRACED);
+        printf("PID %i changed state\n", terminatedPID);
+        pid_t foregroundPID = GetForegroundJob();
+        if(terminatedPID == foregroundPID) {
+            if(WIFEXITED(status)) {
                 printf("Foreground process %i returned %i\n", foregroundPID, WEXITSTATUS(status));
-                }
-                if(WIFSIGNALED(status)) {
-                    switch(WTERMSIG(status)) {
-                        case SIGINT:
-                            printf("Foreground process %i terminated due to uncaught SIGINT\n", foregroundPID);
-                            break;
-                        default:
-                            printf("Foreground process %i terminated due to uncaught signal %i\n", foregroundPID, WTERMSIG(status));
-                            break;
-                    }
-                }
-                if(WIFSTOPPED(status)) {
-
-                    printf("Foreground process %i stopped (not terminated) due to signal %i\n", foregroundPID, WSTOPSIG(status));
-                    int jobNumber = AddBackgroundJob(foregroundPID, BACKGROUND_JOB_STOPPED);
-                    PrintJob(jobNumber, foregroundPID, BACKGROUND_JOB_STOPPED);
-
-                }
-                foregroundPID = -1;
-            } else {
-                printf("Background process pid=%i exited\n", terminatedPID);
-                RemoveBackgroundJobByPID(terminatedPID);
+                RemoveJobByPID(foregroundPID);
             }
+            if(WIFSIGNALED(status)) {
+                switch(WTERMSIG(status)) {
+                    case SIGINT:
+                        printf("Foreground process %i terminated due to uncaught SIGINT\n", foregroundPID);
+                        break;
+                    default:
+                        printf("Foreground process %i terminated due to uncaught signal %i\n", foregroundPID, WTERMSIG(status));
+                        break;
+                }
+                RemoveJobByPID(foregroundPID);
+            }
+            if(WIFSTOPPED(status)) {
+
+                printf("Foreground process %i stopped (not terminated) due to signal %i\n", foregroundPID, WSTOPSIG(status));
+                int jobNumber = SetJobRunningStateByPID(foregroundPID, JOB_STOPPED);
+                PrintJob(jobNumber, foregroundPID, JOB_STOPPED);
+
+            }
+        } else {
+            printf("Background process pid=%i exited\n", terminatedPID);
+            SetJobRunningStateByPID(terminatedPID, JOB_BACKGROUND_DONE);
         }
     }
 }
@@ -353,12 +322,13 @@ static void WaitForForegroundProcess() {
 
 	static bool RunBuiltInCmd(commandT* cmd) {
 	    if(strcmp(cmd->argv[0], "jobs") == 0) {
-	        PrintBackgroundJobs();
+	        PrintAllJobsAndRemoveDoneJobs();
 	        return TRUE;
 	    }
 
             if(strcmp(cmd->argv[0], "bg") == 0) {
-                BackgroundJob* bgdjob = backgroundJobListHead;
+
+                /*Job* bgdjob = backgroundJobListHead;
                 if(cmd->argc < 2) {
                     while(bgdjob->next != NULL) {
                         bgdjob = bgdjob->next;
@@ -370,7 +340,7 @@ static void WaitForForegroundProcess() {
                         bgdjob = bgdjob->next;
                 }
                 }
-                bgdjob->running = TRUE;
+                bgdjob->running = TRUE;*/
                 return TRUE;
             }
 
@@ -394,8 +364,9 @@ static void WaitForForegroundProcess() {
 	    return FALSE;
 	}
 
-    void CheckJobs() {
- 	}
+void CheckJobs() {
+    PrintAndRemoveDoneJobs();
+}
 
 
 commandT* CreateCmdT(int n)
@@ -424,156 +395,17 @@ void ReleaseCmdT(commandT **cmd){
   free(*cmd);
 }
 
-static int AddBackgroundJob(pid_t toAdd, char running) {
-    BackgroundJob* newJob = (BackgroundJob* )malloc(sizeof(BackgroundJob));
-    newJob->pid = toAdd;
-    newJob->next = NULL;
-    newJob->running = running;
-    if(backgroundJobListHead == NULL) {
-        newJob->jobNumber = 1;
-        backgroundJobListHead = newJob;
-        backgroundJobListTail = newJob;
-    } else {
-        backgroundJobListTail->next = newJob;
-        newJob->jobNumber = backgroundJobListTail->jobNumber + 1;
-        backgroundJobListTail = newJob;
-    }
-    return backgroundJobListTail->jobNumber;
-}
-
-static pid_t RemoveBackgroundJobByPID(pid_t pidToDelete) {
-    BackgroundJob* job = backgroundJobListHead;
-    BackgroundJob* previousJob = NULL;
-    int jobNumber = 1;
-    while(job != NULL && job->pid != pidToDelete) {
-        previousJob = job;
-        job = job->next;
-        jobNumber++;
-    }
-    if(job == NULL) {
-        return -1;
-    }
-    if(job == backgroundJobListHead) {
-        backgroundJobListHead = job->next;
-    }
-    if(job == backgroundJobListTail) {
-        backgroundJobListTail = previousJob;
-    }
-    if(previousJob != NULL) {
-        previousJob->next = job->next;
-    }
-    free(job);
-    return pidToDelete;
-}
-
-static pid_t RemoveBackgroundJobByJobNumber(int jobNumberToDelete) {
-    BackgroundJob* job = backgroundJobListHead;
-    BackgroundJob* previousJob = NULL;
-    int jobNumber = 1;
-    while(job != NULL && job->jobNumber != jobNumberToDelete) {
-        previousJob = job;
-        job = job->next;
-        jobNumber++;
-    }
-    if(job == NULL) {
-        return -1;
-    }
-    if(job == backgroundJobListHead) {
-        backgroundJobListHead = job->next;
-    }
-    if(job == backgroundJobListTail) {
-        backgroundJobListTail = previousJob;
-    }
-    if(previousJob != NULL) {
-        previousJob->next = job->next;
-    }
-    pid_t pidOfDeletedJob = job->pid;
-    free(job);
-    return pidOfDeletedJob;
-}
-
-static pid_t GetBackgroundJobByJobNumber(int jobNumber) {
-    BackgroundJob* job = backgroundJobListHead;
-    while(job != NULL && job->jobNumber != jobNumber) {
-        job = job->next;
-    }
-
-    if(job == NULL) {
-        return -1;
-    } else {
-        return job->pid;
-    }
-}
-
-static pid_t SetRunningBackgroundJob(int jobNumber, char running) {
-    BackgroundJob* job = backgroundJobListHead;
-    while(job != NULL && job->jobNumber != jobNumber) {
-        job = job->next;
-    }
-
-    if(job == NULL) {
-        return -1;
-    } else {
-        job->running = running;
-        return job->pid;
-    }
-}
-
-static void MoveBackgroundJobToForeground(int jobNumber) {
-    if(foregroundPID != -1) {
-        printf("Somehow a foreground process %i is already running, this should never occur\n", foregroundPID);
-        return;
-    }
-    if(jobNumber == -1) {
-        if(backgroundJobListTail != NULL) {
-            jobNumber = backgroundJobListTail->jobNumber;
-        } else {
-            printf("No such job\n");
-            return;
-        }
-    }
-    foregroundPID = RemoveBackgroundJobByJobNumber(jobNumber);
-    if(foregroundPID == -1) {
-        printf("No such job\n");
-        return;
-    } else {
-        killpg(foregroundPID, SIGCONT);
-        printf("Moving task %i (pid %i) to foreground\n", jobNumber, foregroundPID);
-        WaitForForegroundProcess();
-    }
-
-}
-
-
-
-static void PrintJob(int jobNumber, pid_t pid, char running) {
-    printf("[%i] pid=%i ", jobNumber, pid);
-    if(running) {
-        printf("Running");
-    } else {
-        printf("Stopped");
-    }
-    printf("\n");
-}
-
-static void PrintBackgroundJobs() {
-    BackgroundJob* job = backgroundJobListHead;
-    while(job != NULL) {
-        PrintJob(job->jobNumber, job->pid, job->running);
-        job = job->next;
-    }
-}
 
 void SignalHandler(int signalNumber) {
-    if(foregroundPID != -1) {
+    if(IsForegroundProcessRunning()) {
         switch(signalNumber) {
             case SIGTSTP:
-                printf("SIGTSP received, stopping (not terminating) process %i\n", foregroundPID);
-                killpg(foregroundPID, SIGTSTP);
+                printf("SIGTSP received, stopping (not terminating) process %i\n", GetForegroundJob());
+                killpg(GetForegroundJob(), SIGTSTP);
                 break;
             case SIGINT:
-                printf("SIGINT received, forwarding to process %i\n", foregroundPID);
-                killpg(foregroundPID, signalNumber);
+                printf("SIGINT received, forwarding to process %i\n", GetForegroundJob());
+                killpg(GetForegroundJob(), signalNumber);
                 break;
             case SIGCHLD:
                 printf("Sigchld received in signal handler\n");
@@ -596,7 +428,7 @@ void SignalHandler(int signalNumber) {
                 int status;
                 pid_t terminatedPID = waitpid(-1, &status, WUNTRACED);
                 printf("Background process %i exited\n", terminatedPID);
-                RemoveBackgroundJobByPID(terminatedPID);
+                SetJobRunningStateByPID(terminatedPID, JOB_BACKGROUND_DONE);
                 break;
             default:
                 printf("Unknown signal %i received for background process\n", signalNumber);

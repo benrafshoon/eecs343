@@ -33,7 +33,7 @@ CFLAGS = -g -Wall -O2 -D HAVE_CONFIG_H
 
 DELIVERY = Makefile *.h *.c test_type
 PROGS = tsh
-SRCS = interpreter.c io.c runtime.c tsh.c 
+SRCS = jobs.c interpreter.c io.c runtime.c tsh.c
 OBJS = ${SRCS:.c=.o}
 
 all: ${PROGS}
