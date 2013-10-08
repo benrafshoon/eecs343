@@ -74,7 +74,7 @@
 	/* resolves the path and checks for exutable flag */
 	static bool ResolveExternalCmd(commandT*);
 	/* forks and runs a external program */
-	static void Exec(commandT*, bool);
+	static void ExecuteExternalProgram(commandT*);
 	/* runs a builtin command */
 	static bool RunBuiltInCmd(commandT*);
 
@@ -128,7 +128,7 @@ void RunCmdPipe(commandT* cmd1, commandT* cmd2) {
 /*Try to run an external command*/
 static void RunExternalCmd(commandT* cmd, bool fork) {
     if (ResolveExternalCmd(cmd)){
-        Exec(cmd, fork);
+        ExecuteExternalProgram(cmd);
     } else {
         printf("%s: command not found\n", cmd->argv[0]);
         fflush(stdout);
@@ -182,7 +182,7 @@ static bool ResolveExternalCmd(commandT* cmd)
   return FALSE; /*The command is not found or the user don't have enough priority to run.*/
 }
 
-static void Exec(commandT* cmd, bool forceFork) {
+static void ExecuteExternalProgram(commandT* cmd) {
     sigset_t sigchld;
     sigemptyset(&sigchld);
     sigaddset(&sigchld, SIGCHLD);
@@ -216,7 +216,7 @@ static void Exec(commandT* cmd, bool forceFork) {
             PrintPID(jobNumber, newPID);
         } else {
             printf("New process running in foreground\n");
-            int jobNumber = AddJob(newPID, JOB_RUNNING_FOREGROUND, cmd->cmdline);
+            AddJob(newPID, JOB_RUNNING_FOREGROUND, cmd->cmdline);
             WaitForForegroundProcess();
         }
     }
@@ -285,7 +285,7 @@ static void HandleProcessStateChange(pid_t pid, int statusFromWaitPID) {
             RemoveJobByPID(pid);
         }
         if(WIFSTOPPED(statusFromWaitPID)) {
-            int jobNumber = SetJobRunningStateByPID(pid, JOB_STOPPED);
+            SetJobRunningStateByPID(pid, JOB_STOPPED);
             FindAndPrintJobByPID(pid);
         }
     } else {
@@ -297,7 +297,7 @@ static void HandleProcessStateChange(pid_t pid, int statusFromWaitPID) {
             SetJobRunningStateByPID(pid, JOB_BACKGROUND_DONE);
         }
         if(WIFSTOPPED(statusFromWaitPID)) {
-            int jobNumber = SetJobRunningStateByPID(pid, JOB_STOPPED);
+            SetJobRunningStateByPID(pid, JOB_STOPPED);
             FindAndPrintJobByPID(pid);
         }
     }
