@@ -23,7 +23,7 @@ typedef struct _Job {
 
 //Adds a process to the end of list of background processes.  The job number is assigned to be
 //the current largest job number + 1
-int AddJob(pid_t toAdd, char runningState);
+int AddJob(pid_t toAdd, char runningState, const char* commandName);
 
 //Removes the background job specified by pid toDelete from the list of background jobs
 //On success, returns the pid toDelete.  On fail, returns -1
@@ -46,7 +46,13 @@ int SetJobRunningStateByPID(pid_t pid, char runningState);
 
 inline int IsForegroundProcessRunning();
 
-void PrintJob(int jobNumber, pid_t pid, char running);
+void PrintPID(int jobNumber, pid_t pid);
+
+void PrintJob(int jobNumber, pid_t pid, char runningState, const char* commandName);
+
+void FindAndPrintJobByPID(pid_t pid);
+
+void FindAndPrintJobByJobNumber(int jobNumber);
 
 void PrintAllJobsAndRemoveDoneJobs();
 

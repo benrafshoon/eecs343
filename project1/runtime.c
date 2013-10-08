@@ -84,75 +84,56 @@
 
     static void ChangeDirectory(char* pathToNewDirectory);
 
+    static void RedirectStdIn(const char* pathToFileToRedirectFrom);
+
+    static void RedirectStdOut(const char* pathToFileToRedirectTo);
+
+    static void PrintReasonForProcessStateChange(pid_t pid, int statusFromWaitPID);
+
+    static void HandleProcessStateChange(pid_t pid, int statusFromWaitPID);
+
   /************External Declaration*****************************************/
 
 /**************Implementation***********************************************/
-    int total_task;
-	void RunCmd(commandT** cmd, int n)
-	{
-        int i;
-        total_task = n;
-        if(n == 1) {
-            commandT* currentCommand = cmd[0];
-            //printf("Command name: %s\n", currentCommand->argv[0]);
-            int argvCounter;
-            for(argvCounter = 1; argvCounter < currentCommand->argc; argvCounter++) {
-            //    printf("Argument %i: %s\n", argvCounter, currentCommand->argv[argvCounter]);
-            }
-            if(currentCommand->bg) {
-            //    printf("Background\n");
-            }
-            RunCmdFork(cmd[0], TRUE);
+int total_task;
+
+void RunCmd(commandT** cmd, int n) {
+    int i;
+    total_task = n;
+    if(n == 1) {
+        RunCmdFork(cmd[0], TRUE);
+    } else {
+        RunCmdPipe(cmd[0], cmd[1]);
+        for(i = 0; i < n; i++) {
+            ReleaseCmdT(&cmd[i]);
         }
+    }
+}
 
-        else {
-            RunCmdPipe(cmd[0], cmd[1]);
-            for(i = 0; i < n; i++) {
-                ReleaseCmdT(&cmd[i]);
-            }
-        }
-	}
+void RunCmdFork(commandT* cmd, bool fork) {
+    if (cmd->argc<=0) {
+        return;
+    }
+    if(!RunBuiltInCmd(cmd)) {
+        RunExternalCmd(cmd, fork);
+    }
+}
 
-	void RunCmdFork(commandT* cmd, bool fork)
-	{
-		if (cmd->argc<=0) {
-		    return;
-		}
-        if(!RunBuiltInCmd(cmd)) {
-            RunExternalCmd(cmd, fork);
-        }
-	}
 
-	void RunCmdBg(commandT* cmd)
-	{
-            RunCmdFork(cmd, FALSE);
-		// TODO
-	}
+void RunCmdPipe(commandT* cmd1, commandT* cmd2) {
 
-	void RunCmdPipe(commandT* cmd1, commandT* cmd2)
-	{
-	}
-
-	void RunCmdRedirOut(commandT* cmd, char* file)
-	{
-	}
-
-	void RunCmdRedirIn(commandT* cmd, char* file)
-	{
-	}
+}
 
 
 /*Try to run an external command*/
-static void RunExternalCmd(commandT* cmd, bool fork)
-{
-  if (ResolveExternalCmd(cmd)){
-    Exec(cmd, fork);
-  }
-  else {
-    printf("%s: command not found\n", cmd->argv[0]);
-    fflush(stdout);
-    ReleaseCmdT(&cmd);
-  }
+static void RunExternalCmd(commandT* cmd, bool fork) {
+    if (ResolveExternalCmd(cmd)){
+        Exec(cmd, fork);
+    } else {
+        printf("%s: command not found\n", cmd->argv[0]);
+        fflush(stdout);
+        ReleaseCmdT(&cmd);
+    }
 }
 
 /*Find the executable based on search list provided by environment variable PATH*/
@@ -201,8 +182,7 @@ static bool ResolveExternalCmd(commandT* cmd)
   return FALSE; /*The command is not found or the user don't have enough priority to run.*/
 }
 
-static void Exec(commandT* cmd, bool forceFork)
-{
+static void Exec(commandT* cmd, bool forceFork) {
     sigset_t sigchld;
     sigemptyset(&sigchld);
     sigaddset(&sigchld, SIGCHLD);
@@ -219,44 +199,50 @@ static void Exec(commandT* cmd, bool forceFork)
         newPID = getpid();
 
         if(cmd->is_redirect_out) {
-            printf("Redirecting output to %s\n", cmd->redirect_out);
-            int outputFileDescriptor = open(cmd->redirect_out, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
-            if(outputFileDescriptor == -1) {
-                printf("Could not redirect output to %s\n", cmd->redirect_out);
-                exit(1);
-            } else {
-                dup2(outputFileDescriptor, 1);
-                close(outputFileDescriptor);
-            }
+            RedirectStdOut(cmd->redirect_out);
         }
 
         if(cmd->is_redirect_in) {
-            printf("Redirecting input from %s\n", cmd->redirect_in);
-            int inputFileDescriptor = open(cmd->redirect_in, O_RDONLY);
-            if(inputFileDescriptor == -1) {
-                printf("Could not redirect input from %s\n", cmd->redirect_out);
-                exit(1);
-            } else {
-                dup2(inputFileDescriptor, 0);
-                close(inputFileDescriptor);
-            }
+            RedirectStdIn(cmd->redirect_in);
         }
 
-        printf("Beginning execution of process %i\n", newPID);
         execvp(cmd->argv[0], cmd->argv);
     } else {
         //sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
         printf("Process %i created\n", newPID);
         if(cmd->bg) {
             printf("Adding new process to background\n");
-            int jobNumber = AddJob(newPID, JOB_RUNNING_BACKGROUND);
-            PrintJob(jobNumber, newPID, JOB_RUNNING_BACKGROUND);
+            int jobNumber = AddJob(newPID, JOB_RUNNING_BACKGROUND, cmd->cmdline);
+            PrintPID(jobNumber, newPID);
         } else {
             printf("New process running in foreground\n");
-            int jobNumber = AddJob(newPID, JOB_RUNNING_FOREGROUND);
-            PrintJob(jobNumber, newPID, JOB_RUNNING_FOREGROUND);
+            int jobNumber = AddJob(newPID, JOB_RUNNING_FOREGROUND, cmd->cmdline);
             WaitForForegroundProcess();
         }
+    }
+}
+
+static void RedirectStdIn(const char* pathToFileToRedirectFrom) {
+    printf("Redirecting input from %s\n", pathToFileToRedirectFrom);
+    int inputFileDescriptor = open(pathToFileToRedirectFrom, O_RDONLY);
+    if(inputFileDescriptor == -1) {
+        printf("Could not redirect input from %s\n", pathToFileToRedirectFrom);
+        exit(1);
+    } else {
+        dup2(inputFileDescriptor, 0);
+        close(inputFileDescriptor);
+    }
+}
+
+static void RedirectStdOut(const char* pathToFileToRedirectTo) {
+    printf("Redirecting output to %s\n", pathToFileToRedirectTo);
+    int outputFileDescriptor = open(pathToFileToRedirectTo, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    if(outputFileDescriptor == -1) {
+        printf("Could not redirect output to %s\n", pathToFileToRedirectTo);
+        exit(1);
+    } else {
+        dup2(outputFileDescriptor, 1);
+        close(outputFileDescriptor);
     }
 }
 
@@ -278,7 +264,6 @@ static void MoveBackgroundJobToForeground(int jobNumber) {
         printf("Moving task %i (pid %i) to foreground\n", jobNumber, foregroundPID);
         WaitForForegroundProcess();
     }
-
 }
 
 static void WaitForForegroundProcess() {
@@ -286,78 +271,94 @@ static void WaitForForegroundProcess() {
         printf("Foreground process running, shell waiting for sigchld\n");
         int status;
         pid_t terminatedPID = waitpid(-1, &status, WUNTRACED);
-        printf("PID %i changed state\n", terminatedPID);
-        pid_t foregroundPID = GetForegroundJob();
-        if(terminatedPID == foregroundPID) {
-            if(WIFEXITED(status)) {
-                printf("Foreground process %i returned %i\n", foregroundPID, WEXITSTATUS(status));
-                RemoveJobByPID(foregroundPID);
-            }
-            if(WIFSIGNALED(status)) {
-                switch(WTERMSIG(status)) {
-                    case SIGINT:
-                        printf("Foreground process %i terminated due to uncaught SIGINT\n", foregroundPID);
-                        break;
-                    default:
-                        printf("Foreground process %i terminated due to uncaught signal %i\n", foregroundPID, WTERMSIG(status));
-                        break;
-                }
-                RemoveJobByPID(foregroundPID);
-            }
-            if(WIFSTOPPED(status)) {
-
-                printf("Foreground process %i stopped (not terminated) due to signal %i\n", foregroundPID, WSTOPSIG(status));
-                int jobNumber = SetJobRunningStateByPID(foregroundPID, JOB_STOPPED);
-                PrintJob(jobNumber, foregroundPID, JOB_STOPPED);
-
-            }
-        } else {
-            printf("Background process pid=%i exited\n", terminatedPID);
-            SetJobRunningStateByPID(terminatedPID, JOB_BACKGROUND_DONE);
-        }
+        HandleProcessStateChange(terminatedPID, status);
     }
 }
 
+static void HandleProcessStateChange(pid_t pid, int statusFromWaitPID) {
+    if(pid == GetForegroundJob()) {
+        printf("Foreground pid %i changed state\n", pid);
+        if(WIFEXITED(statusFromWaitPID)) {
+            RemoveJobByPID(pid);
+        }
+        if(WIFSIGNALED(statusFromWaitPID)) {
+            RemoveJobByPID(pid);
+        }
+        if(WIFSTOPPED(statusFromWaitPID)) {
+            int jobNumber = SetJobRunningStateByPID(pid, JOB_STOPPED);
+            FindAndPrintJobByPID(pid);
+        }
+    } else {
+        printf("Background pid %i changed state\n", pid);
+        if(WIFEXITED(statusFromWaitPID)) {
+            SetJobRunningStateByPID(pid, JOB_BACKGROUND_DONE);
+        }
+        if(WIFSIGNALED(statusFromWaitPID)) {
+            SetJobRunningStateByPID(pid, JOB_BACKGROUND_DONE);
+        }
+        if(WIFSTOPPED(statusFromWaitPID)) {
+            int jobNumber = SetJobRunningStateByPID(pid, JOB_STOPPED);
+            FindAndPrintJobByPID(pid);
+        }
+    }
+    PrintReasonForProcessStateChange(pid, statusFromWaitPID);
+}
 
+static void PrintReasonForProcessStateChange(pid_t pid, int statusFromWaitPID) {
+    if(WIFEXITED(statusFromWaitPID)) {
+        printf("Process %i returned %i\n", pid, WEXITSTATUS(statusFromWaitPID));
+    }
+    if(WIFSIGNALED(statusFromWaitPID)) {
+        switch(WTERMSIG(statusFromWaitPID)) {
+            case SIGINT:
+                printf("Process %i terminated due to uncaught SIGINT\n", pid);
+                break;
+            default:
+                printf("Foreground process %i terminated due to uncaught signal %i\n", pid, WTERMSIG(statusFromWaitPID));
+                break;
+        }
+    }
+    if(WIFSTOPPED(statusFromWaitPID)) {
+        printf("Foreground process %i stopped (not terminated) due to signal %i\n", pid, WSTOPSIG(statusFromWaitPID));
+    }
+}
 
-	static bool RunBuiltInCmd(commandT* cmd) {
-	    if(strcmp(cmd->argv[0], "jobs") == 0) {
-	        PrintAllJobsAndRemoveDoneJobs();
-	        return TRUE;
-	    }
+static bool RunBuiltInCmd(commandT* cmd) {
+    if(strcmp(cmd->argv[0], "jobs") == 0) {
+        PrintAllJobsAndRemoveDoneJobs();
+        return TRUE;
+    }
 
-            if(strcmp(cmd->argv[0], "bg") == 0) {
+    if(strcmp(cmd->argv[0], "bg") == 0) {
+        if(cmd->argc < 2) {
+            printf("Must specify a job number to put in background\n");
+        } else {
+            int pID = SetJobRunningStateByJobNumber(atoi(cmd->argv[1]), JOB_RUNNING_BACKGROUND);
+            killpg(pID,SIGCONT);
+        }
+        return TRUE;
+    }
 
-                if(cmd->argc < 2) {
-                    printf("Must specify a job number to put in background\n");
-                }
+    if(strcmp(cmd->argv[0], "fg") == 0) {
+        if(cmd->argc < 2) {
+            MoveBackgroundJobToForeground(-1);
+        } else {
+            MoveBackgroundJobToForeground(atoi(cmd->argv[1]));
+        }
+        return TRUE;
+    }
 
-                else{
-                    int pID = SetJobRunningStateByJobNumber(atoi(cmd->argv[1]), JOB_RUNNING_BACKGROUND);
-                    killpg(pID,SIGCONT);
-                }
-                return TRUE;
-            }
+    if(strcmp(cmd->argv[0], "cd") == 0) {
+        if(cmd->argc >= 2) {
+            ChangeDirectory(cmd->argv[1]);
+        } else {
+            ChangeDirectory(NULL);
+        }
+        return TRUE;
+    }
 
-	    if(strcmp(cmd->argv[0], "fg") == 0) {
-            if(cmd->argc < 2) {
-                MoveBackgroundJobToForeground(-1);
-            } else {
-                MoveBackgroundJobToForeground(atoi(cmd->argv[1]));
-            }
-
-            return TRUE;
-	    }
-	    if(strcmp(cmd->argv[0], "cd") == 0) {
-	        if(cmd->argc >= 2) {
-	            ChangeDirectory(cmd->argv[1]);
-	        } else {
-	            ChangeDirectory(NULL);
-	        }
-	        return TRUE;
-	    }
-	    return FALSE;
-	}
+    return FALSE;
+}
 
 void CheckJobs() {
     PrintAndRemoveDoneJobs();
@@ -423,16 +424,13 @@ void SignalHandler(int signalNumber) {
                 int status;
                 pid_t terminatedPID = waitpid(-1, &status, WUNTRACED | WNOHANG);
                 if(terminatedPID > 0) {
-                    printf("Background process %i exited\n", terminatedPID);
-                    SetJobRunningStateByPID(terminatedPID, JOB_BACKGROUND_DONE);
+                    HandleProcessStateChange(terminatedPID, status);
                 }
-
                 break;
             default:
                 printf("Unknown signal %i received for background process\n", signalNumber);
-
+                break;
         }
-
     }
 }
 
@@ -454,7 +452,5 @@ static void ChangeDirectory(char* pathToNewDirectory) {
                 printf("Could not change directory to %s\n", pathToNewDirectory);
             }
         }
-
     }
-
 }
