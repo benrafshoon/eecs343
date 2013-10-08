@@ -182,8 +182,8 @@ void PrintAllJobsAndRemoveDoneJobs() {
             job = job->next;
             RemoveJobFromList(jobToDelete, previousJob);
         } else {
-            job = job->next;
             previousJob = job;
+            job = job->next;
         }
     }
 }
@@ -198,8 +198,8 @@ void PrintAndRemoveDoneJobs() {
             job = job->next;
             RemoveJobFromList(jobToDelete, previousJob);
         } else {
-            job = job->next;
             previousJob = job;
+            job = job->next;
         }
     }
 }
