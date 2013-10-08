@@ -48,7 +48,7 @@ inline int IsForegroundProcessRunning();
 
 void PrintJob(int jobNumber, pid_t pid, char running);
 
-void PrintAllJobs();
+void PrintAllJobsAndRemoveDoneJobs();
 
 void PrintAndRemoveDoneJobs();
 

@@ -328,19 +328,14 @@ static void WaitForForegroundProcess() {
 
             if(strcmp(cmd->argv[0], "bg") == 0) {
 
-                /*Job* bgdjob = backgroundJobListHead;
                 if(cmd->argc < 2) {
-                    while(bgdjob->next != NULL) {
-                        bgdjob = bgdjob->next;
-                    }
+                    printf("Must specify a job number to put in background\n");
                 }
+
                 else{
-                    int i;
-                    for(i = 1; i < (int)*cmd->argv[1]; i++) {
-                        bgdjob = bgdjob->next;
+                    int pID = SetJobRunningStateByJobNumber(atoi(cmd->argv[1]), JOB_RUNNING_BACKGROUND);
+                    killpg(pID,SIGCONT);
                 }
-                }
-                bgdjob->running = TRUE;*/
                 return TRUE;
             }
 
@@ -426,9 +421,12 @@ void SignalHandler(int signalNumber) {
             case SIGCHLD:
                 printf("SIGCHLD received for background process\n");
                 int status;
-                pid_t terminatedPID = waitpid(-1, &status, WUNTRACED);
-                printf("Background process %i exited\n", terminatedPID);
-                SetJobRunningStateByPID(terminatedPID, JOB_BACKGROUND_DONE);
+                pid_t terminatedPID = waitpid(-1, &status, WUNTRACED | WNOHANG);
+                if(terminatedPID > 0) {
+                    printf("Background process %i exited\n", terminatedPID);
+                    SetJobRunningStateByPID(terminatedPID, JOB_BACKGROUND_DONE);
+                }
+
                 break;
             default:
                 printf("Unknown signal %i received for background process\n", signalNumber);
