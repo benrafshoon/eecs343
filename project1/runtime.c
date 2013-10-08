@@ -113,7 +113,7 @@
     int total_task;
 	void RunCmd(commandT** cmd, int n)
 	{
-        int i;
+        int i, command_number;
         total_task = n;
         if(n == 1) {
             commandT* currentCommand = cmd[0];
@@ -129,7 +129,9 @@
         }
 
         else {
-            RunCmdPipe(cmd[0], cmd[1]);
+            for(command_number=0; command_number<(n-1); command_number++){
+            RunCmdPipe(cmd[command_number], cmd[command_number+1]);
+            }
             for(i = 0; i < n; i++) {
                 ReleaseCmdT(&cmd[i]);
             }
@@ -153,7 +155,34 @@
 
 	void RunCmdPipe(commandT* cmd1, commandT* cmd2)
 	{
-	}
+	    printf("Running one pipe\n");
+	    int fd[2];
+
+	    if (pipe(fd) < 0) {
+            perror("Error in pipe\n");
+            exit(EXIT_FAILURE);
+        }
+
+        if (fork() == 0) {
+            dup2(fd[0], STDIN_FILENO);
+            close(fd[1]);
+            close(fd[0]);
+
+            if (fork() == 0) {
+                dup2(fd[1], STDOUT_FILENO);
+                close(fd[0]);
+                close(fd[1]);
+                execvp(cmd1->argv[0], cmd1->argv);
+            }
+
+            wait(NULL);
+            execvp(cmd2->argv[0], cmd2->argv);
+        }
+
+    close(fd[1]);
+    close(fd[0]);
+    wait(NULL);
+    }
 
 	void RunCmdRedirOut(commandT* cmd, char* file)
 	{
