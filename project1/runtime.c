@@ -54,6 +54,7 @@
 	#include "io.h"
 	#include "tsh.h"
 	#include "jobs.h"
+	#include "alias.h"
 
   /************Defines and Typedefs*****************************************/
     /*  #defines and typedefs should have their names in all caps.
@@ -379,6 +380,32 @@ static bool RunBuiltInCmd(commandT* cmd) {
         return TRUE;
     }
 
+    if(strcmp(cmd->argv[0], "alias") == 0) {
+        char* commandString = (char*)malloc(sizeof(char) * (strlen(cmd->cmdline) + 1));
+        strcpy(commandString, cmd->cmdline);
+        char* space = strchr(commandString, ' ');
+        if(space == NULL) {
+            PrintAliases();
+        } else {
+            char* keyValueString = space + 1;
+            char* key = strtok(keyValueString, "=");
+            char* value = strtok(NULL, "\'");
+            AddAlias(key, value);
+        }
+        free(commandString);
+        return TRUE;
+    }
+
+    if(strcmp(cmd->argv[0], "unalias") == 0) {
+        if(cmd->argc >= 2) {
+            char* keyToDelete = cmd->argv[1];
+            const char* deletedKey = RemoveAlias(keyToDelete);
+            if(deletedKey == NULL) {
+                printf("unalias: %s: not found\n", keyToDelete);
+            }
+        }
+        return TRUE;
+    }
     return FALSE;
 }
 
