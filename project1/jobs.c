@@ -1,21 +1,16 @@
-#include <assert.h>
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
-#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <signal.h>
 
 #include "jobs.h"
 
-static Job* jobListHead = NULL;
-static Job* jobListTail = NULL;
-static Job* foregroundJob = NULL;
+static Job* jobListHead = NULL; //Head of the list of jobs (lowest job number)
+static Job* jobListTail = NULL; //Tail of the list of jobs (highest job number)
+static Job* foregroundJob = NULL; //The foreground job, if there is a foreground job
 
+//Removes a job from the list of jobs.  Must pass the previous job in the list
 static void RemoveJobFromList(Job* job, Job* previousJob);
 
 inline int IsForegroundProcessRunning() {
