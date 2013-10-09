@@ -132,23 +132,30 @@ void PrintPID(int jobNumber, pid_t pid) {
 void PrintJob(int jobNumber, pid_t pid, char runningState, const char* commandName) {
     printf("[%i]   ", jobNumber);
     switch(runningState) {
-        case JOB_STOPPED:
+        case JOB_STOPPED: {
             printf("Stopped");
             break;
+        }
         case JOB_RUNNING_BACKGROUND:
+        case JOB_RUNNING_FOREGROUND: {
             printf("Running");
             break;
-        case JOB_RUNNING_FOREGROUND:
-            printf("Running (Foreground)");
-            break;
-        case JOB_BACKGROUND_DONE:
+        }
+        case JOB_BACKGROUND_DONE: {
             printf("Done   ");
             break;
-        default:
+        }
+        default: {
             printf("Unknown running state");
             break;
+        }
     }
-    printf("                 %s\n", commandName);
+    printf("                 %s", commandName);
+    if(runningState == JOB_RUNNING_BACKGROUND) {
+        printf(" &");
+    }
+    printf("\n");
+
 }
 
 static void RemoveJobFromList(Job* job, Job* previousJob) {

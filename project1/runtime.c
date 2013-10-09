@@ -209,13 +209,19 @@ static void ExecuteExternalProgram(commandT* cmd) {
         execvp(cmd->argv[0], cmd->argv);
     } else {
         //sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
+        #ifdef PRINT_DEBUG
         printf("Process %i created\n", newPID);
+        #endif
         if(cmd->bg) {
+            #ifdef PRINT_DEBUG
             printf("Adding new process to background\n");
+            #endif
             int jobNumber = AddJob(newPID, JOB_RUNNING_BACKGROUND, cmd->cmdline);
-            PrintPID(jobNumber, newPID);
+            //PrintPID(jobNumber, newPID); //Spec says to do this, but tsh-orig doesn't
         } else {
+            #ifdef PRINT_DEBUG
             printf("New process running in foreground\n");
+            #endif
             AddJob(newPID, JOB_RUNNING_FOREGROUND, cmd->cmdline);
             WaitForForegroundProcess();
         }
@@ -223,25 +229,29 @@ static void ExecuteExternalProgram(commandT* cmd) {
 }
 
 static void RedirectStdIn(const char* pathToFileToRedirectFrom) {
+    #ifdef PRINT_DEBUG
     printf("Redirecting input from %s\n", pathToFileToRedirectFrom);
+    #endif
     int inputFileDescriptor = open(pathToFileToRedirectFrom, O_RDONLY);
     if(inputFileDescriptor == -1) {
         printf("Could not redirect input from %s\n", pathToFileToRedirectFrom);
         exit(1);
     } else {
-        dup2(inputFileDescriptor, 0);
+        dup2(inputFileDescriptor, STDIN_FILENO);
         close(inputFileDescriptor);
     }
 }
 
 static void RedirectStdOut(const char* pathToFileToRedirectTo) {
+    #ifdef PRINT_DEBUG
     printf("Redirecting output to %s\n", pathToFileToRedirectTo);
+    #endif
     int outputFileDescriptor = open(pathToFileToRedirectTo, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     if(outputFileDescriptor == -1) {
         printf("Could not redirect output to %s\n", pathToFileToRedirectTo);
         exit(1);
     } else {
-        dup2(outputFileDescriptor, 1);
+        dup2(outputFileDescriptor, STDOUT_FILENO);
         close(outputFileDescriptor);
     }
 }
@@ -261,14 +271,18 @@ static void MoveBackgroundJobToForeground(int jobNumber) {
         return;
     } else {
         killpg(foregroundPID, SIGCONT);
+        #ifdef PRINT_DEBUG
         printf("Moving task %i (pid %i) to foreground\n", jobNumber, foregroundPID);
+        #endif
         WaitForForegroundProcess();
     }
 }
 
 static void WaitForForegroundProcess() {
     while(IsForegroundProcessRunning()) {
+        #ifdef PRINT_DEBUG
         printf("Foreground process running, shell waiting for sigchld\n");
+        #endif
         int status;
         pid_t terminatedPID = waitpid(-1, &status, WUNTRACED);
         HandleProcessStateChange(terminatedPID, status);
@@ -277,7 +291,9 @@ static void WaitForForegroundProcess() {
 
 static void HandleProcessStateChange(pid_t pid, int statusFromWaitPID) {
     if(pid == GetForegroundJob()) {
+        #ifdef PRINT_DEBUG
         printf("Foreground pid %i changed state\n", pid);
+        #endif
         if(WIFEXITED(statusFromWaitPID)) {
             RemoveJobByPID(pid);
         }
@@ -289,7 +305,9 @@ static void HandleProcessStateChange(pid_t pid, int statusFromWaitPID) {
             FindAndPrintJobByPID(pid);
         }
     } else {
+        #ifdef PRINT_DEBUG
         printf("Background pid %i changed state\n", pid);
+        #endif
         if(WIFEXITED(statusFromWaitPID)) {
             SetJobRunningStateByPID(pid, JOB_BACKGROUND_DONE);
         }
@@ -298,10 +316,12 @@ static void HandleProcessStateChange(pid_t pid, int statusFromWaitPID) {
         }
         if(WIFSTOPPED(statusFromWaitPID)) {
             SetJobRunningStateByPID(pid, JOB_STOPPED);
-            FindAndPrintJobByPID(pid);
+            //FindAndPrintJobByPID(pid);
         }
     }
+    #ifdef PRINT_DEBUG
     PrintReasonForProcessStateChange(pid, statusFromWaitPID);
+    #endif
 }
 
 static void PrintReasonForProcessStateChange(pid_t pid, int statusFromWaitPID) {
@@ -310,12 +330,14 @@ static void PrintReasonForProcessStateChange(pid_t pid, int statusFromWaitPID) {
     }
     if(WIFSIGNALED(statusFromWaitPID)) {
         switch(WTERMSIG(statusFromWaitPID)) {
-            case SIGINT:
+            case SIGINT: {
                 printf("Process %i terminated due to uncaught SIGINT\n", pid);
                 break;
-            default:
+            }
+            default: {
                 printf("Foreground process %i terminated due to uncaught signal %i\n", pid, WTERMSIG(statusFromWaitPID));
                 break;
+            }
         }
     }
     if(WIFSTOPPED(statusFromWaitPID)) {
@@ -395,41 +417,65 @@ void ReleaseCmdT(commandT **cmd){
 void SignalHandler(int signalNumber) {
     if(IsForegroundProcessRunning()) {
         switch(signalNumber) {
-            case SIGTSTP:
+            case SIGTSTP: {
+                #ifdef PRINT_DEBUG
                 printf("SIGTSP received, stopping (not terminating) process %i\n", GetForegroundJob());
+                #endif
                 killpg(GetForegroundJob(), SIGTSTP);
                 break;
-            case SIGINT:
+            }
+            case SIGINT: {
+                #ifdef PRINT_DEBUG
                 printf("SIGINT received, forwarding to process %i\n", GetForegroundJob());
+                #endif
                 killpg(GetForegroundJob(), signalNumber);
                 break;
-            case SIGCHLD:
+            }
+            case SIGCHLD: {
+                #ifdef PRINT_DEBUG
                 printf("Sigchld received in signal handler\n");
                 printf("This should never occur\n");
+                #endif
                 break;
-            default:
+            }
+            default: {
+                #ifdef PRINT_DEBUG
                 printf("Unknown signal %i received\n", signalNumber);
+                #endif
                 break;
+            }
         }
     } else {
         switch(signalNumber) {
-            case SIGINT:
+            case SIGINT: {
+                #ifdef PRINT_DEBUG
                 printf("SIGINT received, no foreground process running\n");
+                #endif
                 break;
-            case SIGTSTP:
+            }
+            case SIGTSTP: {
+                #ifdef PRINT_DEBUG
                 printf("SIGTSTP received, no foreground process running\n");
+                #endif
                 break;
-            case SIGCHLD:
-                printf("SIGCHLD received for background process\n");
+            }
+            case SIGCHLD: {
+                #ifdef PRINT_DEBUG
+                printf("SIGCHILD received for background process\n");
+                #endif
                 int status;
                 pid_t terminatedPID = waitpid(-1, &status, WUNTRACED | WNOHANG);
                 if(terminatedPID > 0) {
                     HandleProcessStateChange(terminatedPID, status);
                 }
                 break;
-            default:
+            }
+            default: {
+                #ifdef PRINT_DEBUG
                 printf("Unknown signal %i received for background process\n", signalNumber);
+                #endif
                 break;
+            }
         }
     }
 }

@@ -1,7 +1,7 @@
 /***************************************************************************
- *  Title: Configuration file 
+ *  Title: Configuration file
  * -------------------------------------------------------------------------
- *    Purpose: Configuration file for the simple shell implementation 
+ *    Purpose: Configuration file for the simple shell implementation
  *    Author: Stefan Birrer
  *    Version: $Revision: 1.1 $
  *    Last Modification: $Date: 2005/10/13 05:24:59 $
