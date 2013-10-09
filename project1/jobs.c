@@ -22,11 +22,14 @@ inline int IsForegroundProcessRunning() {
     return foregroundJob != NULL;
 }
 
-int AddJob(pid_t toAdd, char runningState) {
+int AddJob(pid_t toAdd, char runningState, const char* commandName) {
     Job* newJob = (Job* )malloc(sizeof(Job));
     newJob->pid = toAdd;
     newJob->next = NULL;
     newJob->runningState = runningState;
+    newJob->commandName = (char*)malloc(sizeof(char) * (strlen(commandName) + 1));
+    strcpy(newJob->commandName, commandName);
+
     if(jobListHead == NULL) {
         newJob->jobNumber = 1;
         jobListHead = newJob;
@@ -102,27 +105,57 @@ int SetJobRunningStateByPID(pid_t pid, char runningState) {
     }
 }
 
+void FindAndPrintJobByPID(pid_t pid) {
+    Job* job = jobListHead;
+    while(job != NULL && job->pid != pid) {
+        job = job->next;
+    }
+    if(job != NULL) {
+        PrintJob(job->jobNumber, job->pid, job->runningState, job->commandName);
+    }
+}
 
-void PrintJob(int jobNumber, pid_t pid, char runningState) {
-    printf("[%i] pid=%i ", jobNumber, pid);
+void FindAndPrintJobByJobNumber(int jobNumber) {
+    Job* job = jobListHead;
+    while(job != NULL && job->jobNumber != jobNumber) {
+        job = job->next;
+    }
+    if(job != NULL) {
+        PrintJob(job->jobNumber, job->pid, job->runningState, job->commandName);
+    }
+}
+
+void PrintPID(int jobNumber, pid_t pid) {
+    printf("[%i] %i\n", jobNumber, pid);
+}
+
+void PrintJob(int jobNumber, pid_t pid, char runningState, const char* commandName) {
+    printf("[%i]   ", jobNumber);
     switch(runningState) {
-        case JOB_STOPPED:
+        case JOB_STOPPED: {
             printf("Stopped");
             break;
+        }
         case JOB_RUNNING_BACKGROUND:
+        case JOB_RUNNING_FOREGROUND: {
             printf("Running");
             break;
-        case JOB_RUNNING_FOREGROUND:
-            printf("Running (Foreground)");
+        }
+        case JOB_BACKGROUND_DONE: {
+            printf("Done   ");
             break;
-        case JOB_BACKGROUND_DONE:
-            printf("Done");
-            break;
-        default:
+        }
+        default: {
             printf("Unknown running state");
             break;
+        }
+    }
+    printf("                 %s", commandName);
+    if(runningState == JOB_RUNNING_BACKGROUND) {
+        printf(" &");
     }
     printf("\n");
+
 }
 
 static void RemoveJobFromList(Job* job, Job* previousJob) {
@@ -138,6 +171,8 @@ static void RemoveJobFromList(Job* job, Job* previousJob) {
     if(job == foregroundJob) {
         foregroundJob = NULL;
     }
+
+    free(job->commandName);
     free(job);
 }
 
@@ -176,7 +211,7 @@ void PrintAllJobsAndRemoveDoneJobs() {
     Job* job = jobListHead;
     Job* previousJob = NULL;
     while(job != NULL) {
-        PrintJob(job->jobNumber, job->pid, job->runningState);
+        PrintJob(job->jobNumber, job->pid, job->runningState, job->commandName);
         if(job->runningState == JOB_BACKGROUND_DONE) {
             Job* jobToDelete = job;
             job = job->next;
@@ -193,7 +228,7 @@ void PrintAndRemoveDoneJobs() {
     Job* previousJob = NULL;
     while(job != NULL) {
         if(job->runningState == JOB_BACKGROUND_DONE) {
-            PrintJob(job->jobNumber, job->pid, job->runningState);
+            PrintJob(job->jobNumber, job->pid, job->runningState, job->commandName);
             Job* jobToDelete = job;
             job = job->next;
             RemoveJobFromList(jobToDelete, previousJob);

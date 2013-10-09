@@ -87,15 +87,6 @@
 	EXTERN void RunCmd(commandT**,int);
 
 	/***********************************************************************
-	 *  Title: Runs a command in background
-	 * ---------------------------------------------------------------------
-	 *    Purpose: Runs a command in background.
-	 *    Input: a command structure
-	 *    Output: void
-	 ***********************************************************************/
-	EXTERN void RunCmdBg(commandT*);
-
-	/***********************************************************************
 	 *  Title: Runs two command with a pipe
 	 * ---------------------------------------------------------------------
 	 *    Purpose: Runs two command connected with a pipe.
@@ -104,23 +95,6 @@
 	 ***********************************************************************/
 	EXTERN void RunCmdPipe(commandT*, commandT*);
 
-	/***********************************************************************
-	 *  Title: Runs two command with output redirection
-	 * ---------------------------------------------------------------------
-	 *    Purpose: Runs a command and redirects the output to a file.
-	 *    Input: a command structure structure and a file name
-	 *    Output: void
-	 ***********************************************************************/
-	EXTERN void RunCmdRedirOut(commandT*, char*);
-
-	/***********************************************************************
-	 *  Title: Runs two command with input redirection
-	 * ---------------------------------------------------------------------
-	 *    Purpose: Runs a command and redirects the input to a file.
-	 *    Input: a command structure structure and a file name
-	 *    Output: void
-	 ***********************************************************************/
-	EXTERN void RunCmdRedirIn(commandT*, char*);
 
 	/***********************************************************************
 	 *  Title: Stop the foreground process

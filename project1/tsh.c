@@ -35,6 +35,7 @@
 	#include <signal.h>
     #include <string.h>
     #include <stdio.h>
+    #include <unistd.h>
 
   /************Private include**********************************************/
 	#include "tsh.h"
@@ -62,6 +63,8 @@
 
 int main (int argc, char *argv[])
 {
+    setvbuf(stdout, NULL, _IOLBF, 1024);
+
 	/* Initialize command buffer */
 	cmdLine = malloc(sizeof(char*)*BUFSIZE);
 
@@ -80,8 +83,10 @@ int main (int argc, char *argv[])
 void foregroundReadLoop() {
     while (!forceExit) /* repeat forever */
 	{
+	    #ifdef PRINT_DEBUG
         printf("eecs343-tsh> ");
-		/* read command line */
+        #endif
+
 		getCommandLine(&cmdLine, BUFSIZE);
 
         if(strcmp(cmdLine, "exit") == 0)
@@ -90,11 +95,10 @@ void foregroundReadLoop() {
           continue;
         }
 
+        PrintAndRemoveDoneJobs();
+
 		/* interpret command and line
 		 * includes executing of commands */
 		Interpret(cmdLine);
-
-		PrintAndRemoveDoneJobs();
-
 	}
 }
