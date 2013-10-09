@@ -8,37 +8,29 @@ tsh \- a tiny shell that mimics bash
 .B ./tsh
 .SH DESCRIPTION
 .B tsh
-Mimics a Unix shell.  tsh has cd, exit, jobs, bg and fg as built-in processes.  tsh also handles I/O redirection,
- piped commands, and (un)aliased commands.  Jobs are stored in a linked list.
-.SH OPTIONS
-.IP -b
-Do not write `busy' to stdout while processing.
-.IP "-c config-file"
-Use the alternate system wide
-.I config-file
-instead of
-.IR /etc/foo.conf .
-This overrides any
-.B FOOCONF
-environment variable.
-.IP -a
-In addition to the baz segments, also parse the
-blurfl headers.
-.IP -r
-Recursive mode. Operates as fast as lightning
-at the expense of a megabyte of virtual memory.
+mimics a Unix shell.  tsh has cd, exit, jobs, bg and fg as built-in commands.  tsh also handles I/O redirection,
+ piped commands, and aliasing commands.  Jobs (both bg and fg) are stored in a linked list.  
 .SH FILES
-.I /etc/foo.conf
+.I /tsh.h,.c
 .RS
-The system wide configuration file. See
-.BR foo (5)
-for further details.
+Contains the program's 'main' function, which takes input from the user, interprets it, runs the appropriate command,
+ and prints related output.
 .RE
-.I ~/.foorc
+.I /interpreter.h,.c
 .RS
-Per user configuration file. See
-.BR foo (5)
-for further details.
+Functions that handle interpretation of user input into the tiny shell.
+.RE
+.I /io.h,.c
+.RS
+Functions that handle input into and output from the tiny shell.
+.RE
+.I /runtime.h,.c
+.RS
+Functions that handle interpreted input from the shell and run the appropriate commands.
+.RE
+.I /jobs.h,.c
+.RS
+Functions that handle the addition, deletion, completion and checking of foreground and background jobs.
 .SH ENVIRONMENT
 .IP FOOCONF
 If non-null the full pathname for an alternate system wide
