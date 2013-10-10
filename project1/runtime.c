@@ -76,21 +76,30 @@
 	static bool ResolveExternalCmd(commandT*);
 	/* forks and runs a external program */
 	static void ExecuteExternalProgram(commandT*);
-	/* runs a builtin command */
+	/* Runs a built in command.  Returns TRUE if the command is a built in command, and FALSE otherwise */
 	static bool RunBuiltInCmd(commandT*);
 
+    /*Moves the process specified by jobNumber to the foreground.  The job specified by jobNumber
+    must be stopped or running in the background.  If it is stopped, SIGCONT is sent*/
 	static void MoveBackgroundJobToForeground(int jobNumber);
 
+    /*Waits for the foreground process to terminate, and process state changes for any child process while
+    the foreground process is running*/
 	static void WaitForForegroundProcess();
 
+    /*Changes directories to the path specified by pathToNewDirectory.  Expands ~ to $HOME*/
     static void ChangeDirectory(char* pathToNewDirectory);
 
+    /*Redirects stdin to read the file specified instead of the terminal input
+    Should be called by the child process prior to calling exec*/
     static void RedirectStdIn(const char* pathToFileToRedirectFrom);
 
+    /*Redirect stdout to write to the file specified instead of the terminal output.
+    Should be called by the child process prior to calling exec*/
     static void RedirectStdOut(const char* pathToFileToRedirectTo);
 
-    static void PrintReasonForProcessStateChange(pid_t pid, int statusFromWaitPID);
-
+    /*Handle process changing states (running, stopped, terminated).  Behavior depends on
+    whether the process was a foreground or background process*/
     static void HandleProcessStateChange(pid_t pid, int statusFromWaitPID);
 
   /************External Declaration*****************************************/
@@ -187,7 +196,7 @@ static void ExecuteExternalProgram(commandT* cmd) {
     sigset_t sigchld;
     sigemptyset(&sigchld);
     sigaddset(&sigchld, SIGCHLD);
-    //sigprocmask(SIG_BLOCK, &sigchld, NULL);
+    sigprocmask(SIG_BLOCK, &sigchld, NULL);
     pid_t newPID = fork();
     if(newPID < 0)
     {
@@ -195,7 +204,7 @@ static void ExecuteExternalProgram(commandT* cmd) {
     }
     else if(newPID == 0)
     {
-        //sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
+        sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
         setpgid(0, 0);
         newPID = getpid();
 
@@ -209,7 +218,7 @@ static void ExecuteExternalProgram(commandT* cmd) {
 
         execvp(cmd->argv[0], cmd->argv);
     } else {
-        //sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
+        sigprocmask(SIG_UNBLOCK, &sigchld, NULL);
         #ifdef PRINT_DEBUG
         printf("Process %i created\n", newPID);
         #endif
@@ -217,8 +226,7 @@ static void ExecuteExternalProgram(commandT* cmd) {
             #ifdef PRINT_DEBUG
             printf("Adding new process to background\n");
             #endif
-            int jobNumber = AddJob(newPID, JOB_RUNNING_BACKGROUND, cmd->cmdline);
-            //PrintPID(jobNumber, newPID); //Spec says to do this, but tsh-orig doesn't
+            AddJob(newPID, JOB_RUNNING_BACKGROUND, cmd->cmdline);
         } else {
             #ifdef PRINT_DEBUG
             printf("New process running in foreground\n");
@@ -317,32 +325,7 @@ static void HandleProcessStateChange(pid_t pid, int statusFromWaitPID) {
         }
         if(WIFSTOPPED(statusFromWaitPID)) {
             SetJobRunningStateByPID(pid, JOB_STOPPED);
-            //FindAndPrintJobByPID(pid);
         }
-    }
-    #ifdef PRINT_DEBUG
-    PrintReasonForProcessStateChange(pid, statusFromWaitPID);
-    #endif
-}
-
-static void PrintReasonForProcessStateChange(pid_t pid, int statusFromWaitPID) {
-    if(WIFEXITED(statusFromWaitPID)) {
-        printf("Process %i returned %i\n", pid, WEXITSTATUS(statusFromWaitPID));
-    }
-    if(WIFSIGNALED(statusFromWaitPID)) {
-        switch(WTERMSIG(statusFromWaitPID)) {
-            case SIGINT: {
-                printf("Process %i terminated due to uncaught SIGINT\n", pid);
-                break;
-            }
-            default: {
-                printf("Foreground process %i terminated due to uncaught signal %i\n", pid, WTERMSIG(statusFromWaitPID));
-                break;
-            }
-        }
-    }
-    if(WIFSTOPPED(statusFromWaitPID)) {
-        printf("Foreground process %i stopped (not terminated) due to signal %i\n", pid, WSTOPSIG(statusFromWaitPID));
     }
 }
 
@@ -409,11 +392,6 @@ static bool RunBuiltInCmd(commandT* cmd) {
     return FALSE;
 }
 
-void CheckJobs() {
-    PrintAndRemoveDoneJobs();
-}
-
-
 commandT* CreateCmdT(int n)
 {
   int i;
@@ -427,6 +405,7 @@ commandT* CreateCmdT(int n)
     cd -> argv[i] = NULL;
   return cd;
 }
+
 
 /*Release and collect the space of a commandT struct*/
 void ReleaseCmdT(commandT **cmd){

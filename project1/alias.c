@@ -10,6 +10,7 @@ typedef struct _Alias {
     struct _Alias* next;
 } Alias;
 
+//Head of the linked list of all aliases
 static Alias* head = NULL;
 
 void AddAlias(const char* key, const char* value) {

@@ -38,11 +38,9 @@
      *  variables should be in all lower case. When initializing
      *  structures and arrays, line everything up in neat columns.
      */
-	typedef struct string_l {
-		char* s;
-		struct string_l* next;
-	} stringL;
 
+/* Searches the command string for any aliases in the list of aliases.  If found, replaces the alias key with
+the alias value.  Returns a new string that must be freed when done using*/
 static char* ExpandAliases(char* command);
 
 static char* ExpandAliases(char* command) {

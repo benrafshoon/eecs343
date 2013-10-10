@@ -97,15 +97,6 @@
 
 
 	/***********************************************************************
-	 *  Title: Stop the foreground process
-	 * ---------------------------------------------------------------------
-	 *    Purpose: Stops the current foreground process if there is any.
-	 *    Input: void
-	 *    Output: void
-	 ***********************************************************************/
-	EXTERN void StopFgProc();
-
-	/***********************************************************************
 	 *  Title: Create a command structure
 	 * ---------------------------------------------------------------------
 	 *    Purpose: Creates a command structure.
@@ -122,33 +113,6 @@
 	 *    Output: void
 	 ***********************************************************************/
 	EXTERN void ReleaseCmdT(commandT**);
-
-	/***********************************************************************
-	 *  Title: Get the current working directory
-	 * ---------------------------------------------------------------------
-	 *    Purpose: Gets the current working directory.
-	 *    Input: void
-	 *    Output: a string containing the current working directory
-	 ***********************************************************************/
-	EXTERN char* getCurrentWorkingDir();
-
-	/***********************************************************************
-	 *  Title: Get user name
-	 * ---------------------------------------------------------------------
-	 *    Purpose: Gets user name logged in on the controlling terminal.
-	 *    Input: void
-	 *    Output: a string containing the user name
-	 ***********************************************************************/
-	EXTERN char* getLogin();
-
-	/***********************************************************************
-	 *  Title: Check the jobs
-	 * ---------------------------------------------------------------------
-	 *    Purpose: Checks the status of the background jobs.
-	 *    Input: void
-	 *    Output: void
-	 ***********************************************************************/
-	EXTERN void CheckJobs();
 
 
 	EXTERN void SignalHandler(int signalNumber);
