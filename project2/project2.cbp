@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="project2" />
+		<Option makefile_is_custom="1" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Option virtualFolders="Makefile/;Documentation/;testsuite/;testsuite/tests/;testsuite/documentation/;testsuite/Config/;" />
+		<Build>
+			<Target title="dummy">
+				<Option platforms="Unix;" />
+				<Option output="kma_dummy" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Option parameters="testsuite/1.trace" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+				<MakeCommands>
+					<Build command="$make" />
+					<CompileFile command="$make" />
+					<Clean command="$make clean" />
+					<DistClean command="$make -f $makefile distclean$target" />
+					<AskRebuildNeeded command="$make" />
+					<SilentBuild command="$make" />
+				</MakeCommands>
+			</Target>
+			<Target title="rm">
+				<Option platforms="Unix;" />
+				<Option output="kma_rm" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Option parameters="testsuite/1.trace" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+				<MakeCommands>
+					<Build command="$make" />
+					<CompileFile command="$make" />
+					<Clean command="$make clean" />
+					<DistClean command="$make -f $makefile distclean$target" />
+					<AskRebuildNeeded command="$make" />
+					<SilentBuild command="$make" />
+				</MakeCommands>
+			</Target>
+			<Target title="p2fl">
+				<Option platforms="Unix;" />
+				<Option output="kma_p2fl" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Option parameters="testsuite/1.trace" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+				<MakeCommands>
+					<Build command="$make" />
+					<CompileFile command="$make" />
+					<Clean command="$make clean" />
+					<DistClean command="$make -f $makefile distclean$target" />
+					<AskRebuildNeeded command="$make" />
+					<SilentBuild command="$make" />
+				</MakeCommands>
+			</Target>
+			<Target title="mck2">
+				<Option platforms="Unix;" />
+				<Option output="kma_mck2" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Option parameters="testsuite/1.trace" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+				<MakeCommands>
+					<Build command="$make" />
+					<CompileFile command="$make" />
+					<Clean command="$make clean" />
+					<DistClean command="$make -f $makefile distclean$target" />
+					<AskRebuildNeeded command="$make" />
+					<SilentBuild command="$make" />
+				</MakeCommands>
+			</Target>
+			<Target title="bud">
+				<Option platforms="Unix;" />
+				<Option output="kma_bud" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Option parameters="testsuite/1.trace" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+				<MakeCommands>
+					<Build command="$make" />
+					<CompileFile command="$make" />
+					<Clean command="$make clean" />
+					<DistClean command="$make -f $makefile distclean$target" />
+					<AskRebuildNeeded command="$make" />
+					<SilentBuild command="$make" />
+				</MakeCommands>
+			</Target>
+			<Target title="lzbud">
+				<Option platforms="Unix;" />
+				<Option output="kma_lzbud" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Option parameters="testsuite/1.trace" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+				<MakeCommands>
+					<Build command="$make" />
+					<CompileFile command="$make" />
+					<Clean command="$make clean" />
+					<DistClean command="$make -f $makefile distclean$target" />
+					<AskRebuildNeeded command="$make" />
+					<SilentBuild command="$make" />
+				</MakeCommands>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wall" />
+		</Compiler>
+		<Unit filename="DOC">
+			<Option virtualFolder="Documentation/" />
+		</Unit>
+		<Unit filename="Makefile">
+			<Option virtualFolder="Makefile/" />
+		</Unit>
+		<Unit filename="README.algorithm">
+			<Option virtualFolder="Documentation/" />
+		</Unit>
+		<Unit filename="kma.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="kma.h" />
+		<Unit filename="kma_bud.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="kma_dummy.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="kma_lzbud.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="kma_mck2.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="kma_p2fl.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="kma_page.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="kma_page.h" />
+		<Unit filename="kma_rm.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="testsuite/1.trace">
+			<Option virtualFolder="testsuite/tests/" />
+		</Unit>
+		<Unit filename="testsuite/2.trace">
+			<Option virtualFolder="testsuite/tests/" />
+		</Unit>
+		<Unit filename="testsuite/3.trace">
+			<Option virtualFolder="testsuite/tests/" />
+		</Unit>
+		<Unit filename="testsuite/4.trace">
+			<Option virtualFolder="testsuite/tests/" />
+		</Unit>
+		<Unit filename="testsuite/5.trace">
+			<Option virtualFolder="testsuite/tests/" />
+		</Unit>
+		<Unit filename="testsuite/GUIDE">
+			<Option virtualFolder="testsuite/documentation/" />
+		</Unit>
+		<Unit filename="testsuite/README.traces">
+			<Option virtualFolder="testsuite/documentation/" />
+		</Unit>
+		<Unit filename="testsuite/config.test">
+			<Option virtualFolder="testsuite/Config/" />
+		</Unit>
+		<Extensions>
+			<code_completion />
+			<debugger />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>
