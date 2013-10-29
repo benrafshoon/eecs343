@@ -49,8 +49,30 @@
  *  variables should be in all lower case. When initializing
  *  structures and arrays, line everything up in neat columns.
  */
+typedef struct {
+    void* start;
+} buf_t;
+
+typedef struct pagelist_struct {
+    kma_page_t* new_page;
+    struct pagelist_struct* next;
+} pagelist;
+
+typedef struct {
+    int size;
+    pagelist* first;
+    int used;
+    buf_t* free_buf_list;
+} freelist;
+
+typedef struct {
+    freelist buf_array[10];
+    int used;
+} buffer_list;
 
 /************Global Variables*********************************************/
+kma_page_t* begin = NULL;
+
 
 /************Function Prototypes******************************************/
 
@@ -61,6 +83,17 @@
 void*
 kma_malloc(kma_size_t size)
 {
+    if (begin == NULL){
+        begin = get_page();
+    }
+    //start page or something
+
+    int adj_size = size + sizeof(buf_t);
+    buffer_list* list = (buffer_list*)begin->ptr;
+    freelist* req = NULL;
+    if (adj_size <= 32){
+        req = &list->buf_array[0];
+    }
   return NULL;
 }
 
