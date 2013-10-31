@@ -32,6 +32,10 @@
 			<Add option="-Wall" />
 		</Compiler>
 		<Unit filename="Makefile" />
+		<Unit filename="alias.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="alias.h" />
 		<Unit filename="config.h" />
 		<Unit filename="interpreter.c">
 			<Option compilerVar="CC" />
@@ -41,6 +45,10 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="io.h" />
+		<Unit filename="jobs.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="jobs.h" />
 		<Unit filename="runtime.c">
 			<Option compilerVar="CC" />
 		</Unit>

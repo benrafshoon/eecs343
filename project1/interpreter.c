@@ -30,6 +30,7 @@
 	#include "interpreter.h"
 	#include "io.h"
 	#include "runtime.h"
+	#include "alias.h"
 
   /************Defines and Typedefs*****************************************/
     /*  #defines and typedefs should have their names in all caps.
@@ -37,10 +38,37 @@
      *  variables should be in all lower case. When initializing
      *  structures and arrays, line everything up in neat columns.
      */
-	typedef struct string_l {
-		char* s;
-		struct string_l* next;
-	} stringL;
+
+/* Searches the command string for any aliases in the list of aliases.  If found, replaces the alias key with
+the alias value.  Returns a new string that must be freed when done using*/
+static char* ExpandAliases(char* command);
+
+static char* ExpandAliases(char* command) {
+    int firstCommandSize;
+    char* space = strchr(command, ' ');
+    if(space != NULL) {
+        firstCommandSize = space - command;
+
+    } else {
+        firstCommandSize = strlen(command);
+    }
+    char* firstCommand = (char*)malloc(sizeof(char) * (firstCommandSize + 1));
+    memcpy(firstCommand, command, firstCommandSize);
+    firstCommand[firstCommandSize] = 0;
+
+    char* newCommand;
+    const char* value = GetAlias(firstCommand);
+    if(value != NULL) {
+        int newSize = strlen(value) + strlen(command + firstCommandSize);
+        newCommand = (char*)malloc(sizeof(char) * (newSize + 1));
+        strcpy(newCommand, value);
+        strcat(newCommand, command + firstCommandSize);
+    } else {
+        newCommand = (char*)malloc(sizeof(char) * strlen(command) + 1);
+        strcpy(newCommand, command);
+    }
+    return newCommand;
+}
 
 /*Parse a single word from the param. Get rid of '"' or '''*/
     char* single_param(char *st){
@@ -135,6 +163,9 @@ void parser_single(char *c, int sz, commandT** cd, int bg)
 /*Parse the whole command line and split commands if a piped command is sent.*/
 void Interpret(char* cmdLine)
 {
+
+    cmdLine = ExpandAliases(cmdLine);
+
   int task = 1;
   int bg = 0, i,k,j = 0, quotation1 = 0, quotation2 = 0;
   commandT **command;
@@ -198,5 +229,6 @@ void Interpret(char* cmdLine)
   parser_single(&(cmdLine[i-j]), j, &(command[task]),bg);
 
   RunCmd(command, task+1);
+  free(cmdLine);
   free(command);
 }

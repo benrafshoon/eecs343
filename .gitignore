@@ -1,2 +1,13 @@
 *.o
 project1/tsh
+project1/project1.layout
+project2/kma_bud
+project2/kma_competition
+project2/kma_dummy
+project2/kma_lzbud
+project2/kma_mck2
+project2/kma_p2fl
+project2/kma_rm
+project2/project2.layout
+project2/kma_output.dat
+
