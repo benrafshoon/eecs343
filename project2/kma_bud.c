@@ -52,6 +52,8 @@
 
  #define MIN_BLOCK_SIZE 8
 
+ #define LARGE_BLOCK_PAGE_SIZE 10
+
 //Max block size = 8k == 2^13
 
 
@@ -93,11 +95,6 @@ static kma_page_t* firstPageT = NULL;
 
 /************Function Prototypes******************************************/
 
-void SetEndSize(void* base, int size) {
-    int* endSize = (int*)((size_t)base + size - sizeof(int));
-    *endSize = size;
-}
-
 inline Block* GetBuddy(Block* block, int blockSize);
 
 inline Page* GetPageFromPointer(void* pointer);
@@ -112,21 +109,19 @@ Block* SplitFreeBlock(Block* block, int requestedSize, int currentSize);
 
 void InitializeFirstPage();
 
-void AddBlockToFreeList(Block* toAdd, int size);
+void AddBlockToFreeList(Block* toAdd, int size); //O(1)
 
-void RemoveBlockFromFreeList(Block* toRemove, int size);
+Block* RemoveBlockFromFreeList(Block* toRemove, int size); //O(n)
+
+Block* FindSmallestBlockOfAtLeastSizeAndRemoveFromFreeList(int requestedSize, int* actualSize); //O(1)
 
 int IsAllocated(void* block);
 
-unsigned int NextPowerOf2(unsigned int number);
+inline unsigned int NextPowerOf2(unsigned int number);
 
-unsigned int Log2(unsigned int number);
+inline unsigned int Log2(unsigned int number);
 
 void PrintFreeList();
-
-void PrintPage(Page* page);
-
-Block* FindSmallestBlockOfAtLeastSizeAndRemoveFromFreeList(int requestedSize, int* actualSize);
 
 void AllocatePage();
 
@@ -142,14 +137,12 @@ LargeBlockPage* AllocateLargeBlockPage();
 
 void FreeLargeBlockPage(LargeBlockPage* block);
 
-int GetBlockSize(Block* block);
-
 /************External Declaration*****************************************/
 
 /**************Implementation***********************************************/
 
 inline Block* GetBuddy(Block* block, int blockSize) {
-    return (Block*)((size_t)block ^ blockSize);
+    return (Block*)((size_t)block ^ (8 << blockSize));
 }
 
 inline FirstPage* GetFirstPage() {
@@ -172,7 +165,7 @@ inline Page* GetPageFromPointer(void* pointer) {
     return (Page*)((size_t)pointer & ~0x1FFF);
 }
 
-unsigned int NextPowerOf2(unsigned int number) {
+inline unsigned int NextPowerOf2(unsigned int number) {
     number--;
     number |= number >> 1;
     number |= number >> 2;
@@ -183,7 +176,7 @@ unsigned int NextPowerOf2(unsigned int number) {
     return number;
 }
 
-unsigned int Log2(unsigned int number) {
+inline unsigned int Log2(unsigned int number) {
     unsigned int log2 = 0;
     while(number >>= 1) {
         log2++;
@@ -197,9 +190,9 @@ Block* SplitFreeBlock(Block* block, int requestedSize, int currentSize) {
     //printf("Splitting block %p of size %i into size %i\n", block, currentSize, requestedSize);
     Block* currentBlock = block;
     while(currentSize > requestedSize) {
-        int newSize = currentSize >> 1; //New blocks are half the size of the old ones
+        int newSize = currentSize - 1; //New blocks are half the size of the old ones
         Block* leftBlock = block;
-        Block* rightBlock = (Block*)((size_t)block + newSize);
+        Block* rightBlock = (Block*)((size_t)block + (8 << newSize));
         AddBlockToFreeList((Block*)rightBlock, newSize);
         currentBlock = leftBlock;
         currentSize = newSize;
@@ -209,66 +202,40 @@ Block* SplitFreeBlock(Block* block, int requestedSize, int currentSize) {
 
 void AddBlockToFreeList(Block* toAdd, int size) {
     FirstPage* firstPage = GetFirstPage();
-    int listIndex = Log2(size) - 3;
-    toAdd->nextBlock = firstPage->freeList[listIndex];
-    firstPage->freeList[listIndex] = toAdd;
+    toAdd->nextBlock = firstPage->freeList[size];
+    firstPage->freeList[size] = toAdd;
 }
 
-void RemoveBlockFromFreeList(Block* toRemove, int size) {
+Block* RemoveBlockFromFreeList(Block* toRemove, int size) {
     FirstPage* firstPage = GetFirstPage();
-    int listIndex = Log2(size) - 3;
-    Block* block = firstPage->freeList[listIndex];
+    Block* block = firstPage->freeList[size];
     Block* previousBlock = NULL;
     while(block != NULL && block != toRemove) {
         previousBlock = block;
         block = block->nextBlock;
     }
-    if(firstPage->freeList[listIndex] == toRemove) {
-        firstPage->freeList[listIndex] = toRemove->nextBlock;
+    if(block == NULL) {
+        return NULL;
+    }
+    if(firstPage->freeList[size] == toRemove) {
+        firstPage->freeList[size] = toRemove->nextBlock;
     }
     if(previousBlock != NULL) {
         previousBlock->nextBlock = toRemove->nextBlock;
     }
-}
-
-int IsBlockInFreeList(Block* block, int size) {
-    int listIndex = Log2(size) - 3;
-    FirstPage* firstPage = GetFirstPage();
-    Block* current = firstPage->freeList[listIndex];
-    while(current != NULL) {
-        if(current == block) {
-            return TRUE;
-        }
-        current = current->nextBlock;
-    }
-    return FALSE;
-}
-
-int GetBlockSize(Block* block) {
-    FirstPage* firstPage = GetFirstPage();
-    int i;
-    for(i = 0; i < FREELIST_SIZE; i++) {
-        Block* currentBlock = firstPage->freeList[i];
-        while(currentBlock != NULL) {
-            if(currentBlock == block) {
-                return 8 << i;
-            }
-            currentBlock = currentBlock->nextBlock;
-        }
-    }
-    return -1;
+    return toRemove;
 }
 
 void InitializeFirstPage() {
     if(firstPageT == NULL) {
         firstPageT = get_page();
         FirstPage* firstPage = GetFirstPage();
-        firstPage->numAllocatedBlocks = 1;
+        firstPage->numAllocatedBlocks = 0;
         int i;
         for(i = 0; i < FREELIST_SIZE; i++) {
             firstPage->freeList[i] = NULL;
         }
-        SplitFreeBlock((Block*)firstPage, 64, PAGESIZE);
+        SplitFreeBlock((Block*)firstPage, 3, LARGE_BLOCK_PAGE_SIZE);
         //PrintFreeList();
     }
 }
@@ -288,29 +255,26 @@ void PrintFreeList() {
     }
 }
 
-void PrintPage(Page* page) {
-
-}
 
 Block* FindSmallestBlockOfAtLeastSizeAndRemoveFromFreeList(int requestedSize, int* actualSize) {
     //printf("Finding block of size %i\n", requestedSize);
-    int sizeIndex = Log2(requestedSize) - 3;
     FirstPage* firstPage = GetFirstPage();
     Block* block = NULL;
-    int i;
-    for(i = sizeIndex; i < FREELIST_SIZE; i++) {
+    int size;
+    for(size = requestedSize; size < FREELIST_SIZE; size++) {
         //printf("Size %i\n", 8 << i);
-        block = firstPage->freeList[i];
+        block = firstPage->freeList[size];
         //printf("Block %p\n", block);
         if(block != NULL) {
-            firstPage->freeList[i] = block->nextBlock;
+            firstPage->freeList[size] = block->nextBlock;
             break;
         }
     }
-    *actualSize = 8 << i;
-    if(block != NULL) {
+
+    *actualSize = size;
+    //if(block != NULL) {
        // printf("Found block %p of size %i\n", block, *actualSize);
-    }
+    //}
     return block;
 }
 
@@ -319,7 +283,7 @@ void AllocatePage() {
     Page* page = (Page*)page_t->ptr;
     page->page_t = page_t;
     page->numAllocatedBlocks = 0;
-    SplitFreeBlock((Block*)page, 8, PAGESIZE);
+    SplitFreeBlock((Block*)page, 0, LARGE_BLOCK_PAGE_SIZE);
     //PrintPage((Page*)page);
     //PrintFreeList();
 }
@@ -328,11 +292,10 @@ Block* CoalesceBlock(Block* block, int initialSize, int* coalescedSize) {
     int size = initialSize;
     Block* buddy = GetBuddy(block, size);
     //printf("Buddy %p\n", buddy);
-    while(size < PAGESIZE && IsBlockInFreeList(buddy, size)) {
+    while(size < LARGE_BLOCK_PAGE_SIZE && RemoveBlockFromFreeList(buddy, size) != NULL) {
         //printf("Coalescing size %i to size %i\n", size, size * 2);
-        RemoveBlockFromFreeList(buddy, size);
         Block* leftBlock = LowerBlock(block, buddy);
-        size *= 2;
+        size++;
         block = leftBlock;
         buddy = GetBuddy(block, size);
     }
@@ -344,7 +307,7 @@ void FreePage(Page* page) {
     //printf("Freeing page %p\n", page);
     Block* pageBlock = (Block*)page;
     int coalescedSize;
-    CoalesceBlock(pageBlock, 8, &coalescedSize);
+    CoalesceBlock(pageBlock, 0, &coalescedSize);
     //PrintPage(page);
     free_page(page->page_t);
 }
@@ -352,7 +315,7 @@ void FreePage(Page* page) {
 void AttemptToFreeFirstPage() {
     FirstPage* firstPage = GetFirstPage();
     kma_page_stat_t* currentPageStats = page_stats();
-    if(firstPage->numAllocatedBlocks == 1 && currentPageStats->num_in_use == 1) {
+    if(firstPage->numAllocatedBlocks == 0 && currentPageStats->num_in_use == 1) {
         //printf("Freeing first page\n");
         free_page(firstPageT);
         firstPageT = NULL;
@@ -373,13 +336,10 @@ void FreeLargeBlockPage(LargeBlockPage* block) {
 }
 
 void* kma_malloc(kma_size_t size) {
-    if(size > PAGESIZE - sizeof(LargeBlockPage)) {
-        return NULL;
-    }
     InitializeFirstPage();
-    int blockSize = NextPowerOf2(size);
+    int blockSize = Log2(NextPowerOf2(size)) - 3;
     //printf("Requested block of size %i, allocating block of size %i\n", size, blockSize);
-    if(blockSize == PAGESIZE) {
+    if(blockSize == LARGE_BLOCK_PAGE_SIZE) {
         LargeBlockPage* largeBlockPage = AllocateLargeBlock();
         return GetPointerFromLargeBlockPage(largeBlockPage);
     }
@@ -413,10 +373,10 @@ void* kma_malloc(kma_size_t size) {
 void kma_free(void* ptr, kma_size_t size) {
 
     Block* block = (Block*)ptr;
-    int initialSize = NextPowerOf2(size);
+    int initialSize = Log2(NextPowerOf2(size)) - 3;
     //printf("Freeing block %p of size %i\n", ptr, initialSize);
     //getchar();
-    if(initialSize == PAGESIZE) {
+    if(initialSize == LARGE_BLOCK_PAGE_SIZE) {
         //printf("Freeing large block %p\n", GetLargeBlockPageFromPointer(ptr));
         FreeLargeBlockPage(GetLargeBlockPageFromPointer(ptr));
     } else {
@@ -430,7 +390,7 @@ void kma_free(void* ptr, kma_size_t size) {
         AddBlockToFreeList(block, coalescedSize);
         page->numAllocatedBlocks--;
         //printf("Page %p has %i allocated blocks\n", page, page->numAllocatedBlocks);
-        if(page->numAllocatedBlocks == 0) {
+        if(page->numAllocatedBlocks == 0 && page != (Page*)GetFirstPage()) {
             FreePage(page);
         }
         //PrintFreeList();
