@@ -38,211 +38,266 @@
 /************System include***********************************************/
 #include <assert.h>
 #include <stdlib.h>
-
+#include <stdio.h>
 /************Private include**********************************************/
 #include "kma_page.h"
 #include "kma.h"
 
 /************Defines and Typedefs*****************************************/
-/*  #defines and typedefs should have their names in all caps.
- *  Global variables begin with g. Global constants with k. Local
- *  variables should be in all lower case. When initializing
- *  structures and arrays, line everything up in neat columns.
- */
+/* #defines and typedefs should have their names in all caps.
+* Global variables begin with g. Global constants with k. Local
+* variables should be in all lower case. When initializing
+* structures and arrays, line everything up in neat columns.
+*/
+#define LISTSIZE 10
 
-#define MINPOWER 32
-#define MAXBUFSIZE 8192
-#define FREELISTSIZE 10
-#define PAGES 9
+typedef struct Buffer_
+{
+    void* head; //buffer header
+    //void* next;
+} Buffer;
 
-typedef struct Buf_{
-    void* start;
-} Buf;
-
-typedef struct PageList_ {
-    kma_page_t* new_page;
-    struct PageList_* next;
+typedef struct PageList_
+{
+    kma_page_t* page;
+    struct PageList* next;
 } PageList;
 
-typedef struct FreeList_{
-    int size;
-    int used;
-    PageList* first;
-    Buf* free_buf_list;
-} FreeList;
+typedef struct FreeBufList_
+{
+    PageList* pagelist; //list of pages with ptr to start of list, list size and # of used pages
+    Buffer* start;
+    //PageList* next
+    int blockSize;
+    int numAllocatedBlocks;
+} FreeBufList;
 
-typedef struct BufferList_{
-    FreeList bufArray[10];
-    int used;
-} BufferList;
+typedef struct MainBufList_ //array of free lists varying in blockSize from 32 to 8192
+{
+    FreeBufList FreeList[LISTSIZE];
+    int numListsUsed;
+} MainBufList;
 
 /************Global Variables*********************************************/
-kma_page_t* init = NULL;
-
+kma_page_t* firstPageT = NULL;
 
 /************Function Prototypes******************************************/
-void SetupPage(kma_page_t* page);
-void InitBufArray(BufferList* list);
-void* GetBuffer(FreeList* from_list);
-void MakeBuffer(FreeList* from_list, void* ptr);
-void SlicePage(void* ptr, BufferList* list, int count);
-void AddPageToList(kma_page_t* page, FreeList* home_list);
-void FreePage(FreeList* list);
+void InitializeFirstPage(kma_page_t* page);
+void AddPage(kma_page_t* page, FreeBufList* list);
+void AddBuffer(FreeBufList* list);
+void* FindFit(MainBufList* list, int size);
+void* GetBuffer(FreeBufList* list);
+void FreeMainList();
+void FreeBufferList(Buffer* buf, FreeBufList* list);
 
 /************External Declaration*****************************************/
 
 /**************Implementation***********************************************/
-void InitBufArray(BufferList* list){
-    int i;
-    int pow = 5;
-    for(i = 0; i < (FREELISTSIZE - 1); i++){
-        list->bufArray[i].size = 2 ^ pow;
-        pow++;
-        list->bufArray[i].first = NULL;
-    }
-    int j;
-    for (j = 0; j < FREELISTSIZE; j++){
-        list->bufArray[i].first = NULL;
-        list->bufArray[i].used = 0;
-        list->bufArray[i].free_buf_list = NULL;
-    }
-    list->bufArray[PAGES].size = sizeof(PageList) + sizeof(Buf);
-    list->used = 0;
 
-
+void* FindFit(MainBufList* list, int size){
+    //tests given size against available buffer sizes, and returns address of the best-fit list at FreeList[ndx]
+    //returns NULL if size > 8KB
+  int ndx = 0;
+  if (size <= 32) {
+     return &list->FreeList[ndx];
+  } else {
+     ndx++;
+  }
+  if (size > 32 && size <= 64) {
+     return &list->FreeList[ndx];
+  } else {
+     ndx++;
+  }
+  if (size > 64 && size <= 128) {
+     return &list->FreeList[ndx];
+  } else {
+     ndx++;
+  }
+  if (size > 128 && size <= 256) {
+     return &list->FreeList[ndx];
+  } else {
+     ndx++;
+  }
+  if (size > 256 && size <= 512) {
+      return &list->FreeList[ndx];
+  } else {
+      ndx++;
+  }
+  if (size > 512 && size <= 1024) {
+      return &list->FreeList[ndx];
+  }
+  else {
+      ndx++;
+  }
+  if (size > 1024 && size <= 2048) {
+      return &list->FreeList[ndx];
+  }
+  else {
+      ndx++;
+  }
+  if (size > 2048 && size <= 4096) {
+      return &list->FreeList[ndx];
+  } else {
+      ndx++;
+  }
+  if (size > 4096 && size <= 8192) {
+      return &list->FreeList[ndx];
+  } else {
+      return NULL;
+  }
 }
-
-void SlicePage(void* ptr, BufferList* list, int count){
-    Buf* header;
-    int i;
-    for (i = 0; i < count; i++){
-        header = (Buf*)(ptr + i * (sizeof(PageList) + sizeof(Buf)));
-        header->start = list->bufArray[PAGES].first;
-    }
-}
-
-void SetupPage(kma_page_t* page)
-{
-    //initialize free list
-    BufferList* buf_list = (BufferList*)page->ptr;
-    InitBufArray(buf_list);
-    int buf_count = (PAGESIZE - sizeof(buf_list)) / (sizeof(PageList) + sizeof(Buf));
-
-    void* begin = page->ptr + sizeof(buf_list);
-    SlicePage(begin, buf_list, buf_count);
-    AddPageToList(page, &buf_list->bufArray[PAGES]);
-
-}
-
-void MakeBuffer(FreeList* from_list, void* ptr){
-        int i;
-        for (i = 0; i < (PAGESIZE / from_list->size); i++){
-            void* newb = ptr + (i * from_list->size);
-            Buf* new_buf = (Buf*)newb;
-            new_buf->start = from_list->first;
-            from_list->free_buf_list = new_buf;
-        }
-}
-
-void AddPageToList(kma_page_t* page, FreeList* home_list){
-    BufferList* list = (BufferList*)init->ptr;
-    PageList* newPageList = (PageList*)GetBuffer(&list->bufArray[PAGES]);
-    newPageList->new_page = page;
-    newPageList->next = home_list->first;
-    home_list->first = newPageList;
-
-}
-
-void* GetBuffer(FreeList* from_list){
-
-    if (from_list->first == NULL){
-        kma_page_t* page = get_page();
-        void* p_start = page->ptr;
-        MakeBuffer(from_list, p_start);
-        AddPageToList(page, from_list);
-    }
-    Buf* newBuf = from_list->free_buf_list;
-    from_list->free_buf_list = (Buf*)newBuf->start;
-    newBuf->start = (void*)from_list;
-    from_list->used += 1;
-    BufferList* bufL = init->ptr;
-    void* rest_buf = (void*)newBuf + sizeof(Buf);
-    if (from_list == &bufL->bufArray[PAGES]){
-        return rest_buf;
-    } else {
-        bufL->used +=1;
-        return rest_buf;
-    }
-}
-
 
 void*
 kma_malloc(kma_size_t size)
 {
-    if (init == NULL){
-        init = get_page();
-        SetupPage(init);
-    }
+  if(firstPageT == NULL){ //if we have no page to begin with, get one and initialize it
+    firstPageT = get_page();
+    InitializeFirstPage(firstPageT);
+  }
 
+  FreeBufList* req_ptr = NULL;
+  void* res_ptr = NULL;
 
-    int adj_size = size + sizeof(Buf);
-    BufferList* list = (BufferList*)init->ptr;
-    FreeList* req_mem = NULL;
+  MainBufList* list = (MainBufList*)firstPageT->ptr; //get main buffer list
+  int adj_size = size + sizeof(Buffer); //account for size of buffer in request
+  req_ptr = FindFit(list, adj_size); //find the right buffer list for the request
 
-    int ndx = 0;
-    unsigned long long int bufsize = 1ULL << MINPOWER;
-    assert(adj_size <= MAXBUFSIZE);
-    while(bufsize < adj_size){
-        ndx++;
-        bufsize <<= 1;
-    }
-    req_mem = &list->bufArray[ndx];
-    if (req_mem != NULL){
-        void* result_ptr = GetBuffer(req_mem);
-        return result_ptr;
-    }
-    else {
-        return NULL;
-    }
+  if (req_ptr != NULL) //if we find the right-sized buffer, go get it
+    res_ptr = GetBuffer(req_ptr);
 
+  return res_ptr; //return pointer to newly alloc'd space
 }
 
-void FreePage(FreeList* list){
-    PageList* plist = list->first;
-    while (plist != NULL){
-        free_page(plist->new_page);
-        plist = plist->next;
+
+void
+InitializeFirstPage(kma_page_t* page)
+{
+
+  MainBufList* mainlist = (MainBufList*)page->ptr;
+
+  int i;
+  int power = 5;
+    for(i = 0; i < (LISTSIZE - 1); i++){ //set buffer size of each free list by increasing powers of two
+        mainlist->FreeList[i].blockSize = (1 << power);
+        power++;
     }
+
+    for (i = 0; i < LISTSIZE; i++){ //initialize pointers to start and lists, set numAllocatedBlocks to 0
+        mainlist->FreeList[i].start = NULL;
+        mainlist->FreeList[i].pagelist = NULL;
+        mainlist->FreeList[i].numAllocatedBlocks = 0;
+    }
+
+    int pagelistplusbuf = sizeof(PageList) + sizeof(Buffer); //set var for easy use later
+    mainlist->FreeList[9].blockSize = pagelistplusbuf; //initialize blocksize and # of lists used
+    mainlist->numListsUsed = 0;
+
+
+    int bufcount = (PAGESIZE - sizeof(MainBufList)) / pagelistplusbuf; //get # of buffers that will fit on page
+    void* start = page->ptr + sizeof(MainBufList); //set starting point
+    Buffer* buffer_list_head;
+    int j;
+    for(j = 0; j < bufcount; j++){
+        buffer_list_head = (Buffer*)(start + j*pagelistplusbuf); //create buffers and move start of list upward
+        buffer_list_head->head = mainlist->FreeList[9].start;  //as new buffers are created
+        mainlist->FreeList[9].start = buffer_list_head; //note the start of the list of used pages
+    }
+
+  AddPage(page, &mainlist->FreeList[9]); //add page to list of used pages
+}
+
+
+void
+AddPage(kma_page_t* page, FreeBufList* list)
+{
+  MainBufList* mainbuf = (MainBufList*)firstPageT->ptr;
+  void* newbuf = GetBuffer(&mainbuf->FreeList[9]); //get a buffer from sliced-up page
+  PageList* newpagelist = (PageList*)newbuf; //set a new page list for that page
+  newpagelist->page = page;
+
+  newpagelist->next = (void*)list->pagelist; //make newly added page head of list and point to rest of list
+  list->pagelist = newpagelist;
+}
+
+void*
+GetBuffer(FreeBufList* list)
+{
+    if (list->start == NULL) { //add buffer if we have no list of them handy
+        AddBuffer(list);
+    }
+    Buffer* buf = list->start;
+    list->start = (Buffer*)buf->head; //mark new block as used and set start of list to next free block
+    buf->head = (void*)list;
+    list->numAllocatedBlocks++;
+    MainBufList* bufmain = firstPageT->ptr;
+    if(list != &bufmain->FreeList[9]) {
+        bufmain->numListsUsed++; //increment the counter for the buffer list if it hasn't already been used
+    }
+    void* newbuf = (void*)buf + sizeof(Buffer);
+    return newbuf; //return ptr to newly alloc'd block
+}
+
+
+void
+AddBuffer(FreeBufList* list)
+{
+  kma_page_t* page = get_page(); //get a new page and slice it up according to its designated block size
+  void* start = page->ptr;
+  int i;
+  for(i = 0; i < (PAGESIZE / list->blockSize); i++){ //for loop does the actual slicing and setting the list start ptr
+    Buffer* buf = (Buffer*)(start + i*list->blockSize);
+    buf->head = list->start;
+    list->start = buf;
+  }
+  MainBufList* bufmain = (MainBufList*)firstPageT->ptr;
+  PageList* newlist = (PageList*)GetBuffer(&bufmain->FreeList[9]); //tell the main list that we've added new buffers
+  newlist->page = page;                                             //and mark this page as used
+
+  newlist->next = (void*)list->pagelist;
+  list->pagelist = newlist;
+}
+
+void FreeBufferList(Buffer* buf, FreeBufList* list){ //free the free list of blocks
+  buf->head = list->start; //move the starting ptr 'down' one block in the list
+  list->start = buf;
+  list->numAllocatedBlocks--; //decrement number of alloc'd blocks
+
+  if (list->numAllocatedBlocks == 0) { //if there aren't any blocks left in the list, wipe the free list clean
+    list->start = NULL;
+    PageList* page = list->pagelist;
+    while (page != NULL) {
+      free_page(page->page);
+      page = (PageList*)page->next;
+    }
+    list->pagelist = NULL;
+  }
 }
 
 void
 kma_free(void* ptr, kma_size_t size)
 {
-    void* contents = (void*)ptr - sizeof(Buf);
-    Buf* bufContents = (Buf*)contents;
-    FreeList* list = (FreeList*)bufContents->start;
-    bufContents->start = list->free_buf_list;
-    list->free_buf_list = bufContents;
-    list->used -= 1;
-
-    if (list->used == 0) {
-        list->free_buf_list = NULL;
-        FreePage(list);
-        list->first = NULL;
-    }
-
-    BufferList* listFree = (BufferList*)init->ptr;
-    listFree->used -= 1;
-    if (listFree->used == 0){
-        PageList* pList = listFree->bufArray[PAGES].first;
-        while (pList->next != NULL){
-            free_page(pList->new_page);
-            pList = pList->next;
-        }
-        free_page(pList->new_page);
-        init = NULL;
-    }
+  void* bufspace = (void*)ptr - sizeof(Buffer); //get wiping space minus metadata
+  Buffer* freebuf = (Buffer*)bufspace;
+  FreeBufList* list = (FreeBufList*)freebuf->head; //set new start of list, eliminating old bufspace
+  FreeBufferList(freebuf, list); //check that bufscape is not the last block in an otherwise free list
+  FreeMainList(); //free the entire main list when finished
 }
 
-#endif // KMA_P2FL
+void FreeMainList()
+{
+   MainBufList* list = (MainBufList*)firstPageT->ptr; //if list is totally un-alloc'd, decrement used list counter
+   list->numListsUsed--;
 
+   if (list->numListsUsed == 0) { //is every list totally un-alloc'd?
+     PageList* page = list->FreeList[9].pagelist; //then free every page marked 'used' to make up the list!
+     while (page->next != NULL) { //while loop traverses singly linked list to free all pages
+       free_page(page->page);
+       page = (PageList*)page->next;
+     }
+     free_page(page->page); //frees the very last page and sets very first page ptr to NULL--everything clean and free
+     firstPageT = NULL;
+
+   }
+
+}
+#endif // KMA_P2FL
