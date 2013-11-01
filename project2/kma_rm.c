@@ -124,8 +124,8 @@ void* first_fit(kma_size_t size, Block* first_blockT){
 }
 
 void split_block(Block* block, kma_size_t size, void* base){
-            Block* new_block; //create a new block
-            new_block->base=block->base+size+sizeof(Block*); //the base of this block is end of what's taken up
+            Block* new_block=block+sizeof(Block*)+size; //create a new block at the end of the newly allocated space
+            new_block->base=block->base+sizeof(Block*)+size; //the base of this block is end of what's taken up
             new_block->size=block->size-size-sizeof(Block); //the size of this block is what's free of the last
             new_block->status=FREE;
             new_block->next_block=block->next_block;
@@ -138,7 +138,7 @@ void split_block(Block* block, kma_size_t size, void* base){
 }
 
 Block* add_page(Block* block, kma_page_t* Page){
-    Block* new_block;
+    Block* new_block=Page->ptr; //make a block at the location of the newly created page
     new_block->base=Page->ptr; //get values off that page into a block
     new_block->size=Page->size;
     new_block->status=FREE;
@@ -178,7 +178,7 @@ void free_pages(Block* first_blockT){
     block=first_blockT;
     while((block->base+firstPageT->size)!=NULL){ //run through all pages
         if(block->size==firstPageT->size && block->status==FREE){ //if the block is a page and FREE...
-            kma_page_t* page; //convert the block to a page
+            kma_page_t* page=block->base; //convert the block to a page at the loaction of the block
             page->id=id;
             page->ptr=block->base;
             page->size=firstPageT->size;
