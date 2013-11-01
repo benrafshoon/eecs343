@@ -114,7 +114,7 @@ void InitializeFirstPage();
 
 void AddBlockToFreeList(Block* toAdd, int size);
 
-void RemoveBlockFromFreeList(Block* toRemove, int size);
+Block* RemoveBlockFromFreeList(Block* toRemove, int size);
 
 int IsAllocated(void* block);
 
@@ -214,7 +214,7 @@ void AddBlockToFreeList(Block* toAdd, int size) {
     firstPage->freeList[listIndex] = toAdd;
 }
 
-void RemoveBlockFromFreeList(Block* toRemove, int size) {
+Block* RemoveBlockFromFreeList(Block* toRemove, int size) {
     FirstPage* firstPage = GetFirstPage();
     int listIndex = Log2(size) - 3;
     Block* block = firstPage->freeList[listIndex];
@@ -223,12 +223,16 @@ void RemoveBlockFromFreeList(Block* toRemove, int size) {
         previousBlock = block;
         block = block->nextBlock;
     }
+    if(block == NULL) {
+        return NULL;
+    }
     if(firstPage->freeList[listIndex] == toRemove) {
         firstPage->freeList[listIndex] = toRemove->nextBlock;
     }
     if(previousBlock != NULL) {
         previousBlock->nextBlock = toRemove->nextBlock;
     }
+    return toRemove;
 }
 
 int IsBlockInFreeList(Block* block, int size) {
@@ -263,7 +267,7 @@ void InitializeFirstPage() {
     if(firstPageT == NULL) {
         firstPageT = get_page();
         FirstPage* firstPage = GetFirstPage();
-        firstPage->numAllocatedBlocks = 1;
+        firstPage->numAllocatedBlocks = 0;
         int i;
         for(i = 0; i < FREELIST_SIZE; i++) {
             firstPage->freeList[i] = NULL;
@@ -307,10 +311,11 @@ Block* FindSmallestBlockOfAtLeastSizeAndRemoveFromFreeList(int requestedSize, in
             break;
         }
     }
+
     *actualSize = 8 << i;
-    if(block != NULL) {
+    //if(block != NULL) {
        // printf("Found block %p of size %i\n", block, *actualSize);
-    }
+    //}
     return block;
 }
 
@@ -328,11 +333,10 @@ Block* CoalesceBlock(Block* block, int initialSize, int* coalescedSize) {
     int size = initialSize;
     Block* buddy = GetBuddy(block, size);
     //printf("Buddy %p\n", buddy);
-    while(size < PAGESIZE && IsBlockInFreeList(buddy, size)) {
+    while(size < PAGESIZE && RemoveBlockFromFreeList(buddy, size) != NULL) {
         //printf("Coalescing size %i to size %i\n", size, size * 2);
-        RemoveBlockFromFreeList(buddy, size);
         Block* leftBlock = LowerBlock(block, buddy);
-        size *= 2;
+        size <<= 1;
         block = leftBlock;
         buddy = GetBuddy(block, size);
     }
@@ -352,7 +356,7 @@ void FreePage(Page* page) {
 void AttemptToFreeFirstPage() {
     FirstPage* firstPage = GetFirstPage();
     kma_page_stat_t* currentPageStats = page_stats();
-    if(firstPage->numAllocatedBlocks == 1 && currentPageStats->num_in_use == 1) {
+    if(firstPage->numAllocatedBlocks == 0 && currentPageStats->num_in_use == 1) {
         //printf("Freeing first page\n");
         free_page(firstPageT);
         firstPageT = NULL;
@@ -430,7 +434,7 @@ void kma_free(void* ptr, kma_size_t size) {
         AddBlockToFreeList(block, coalescedSize);
         page->numAllocatedBlocks--;
         //printf("Page %p has %i allocated blocks\n", page, page->numAllocatedBlocks);
-        if(page->numAllocatedBlocks == 0) {
+        if(page->numAllocatedBlocks == 0 && page != (Page*)GetFirstPage()) {
             FreePage(page);
         }
         //PrintFreeList();
