@@ -50,39 +50,45 @@
  *  structures and arrays, line everything up in neat columns.
  */
 
- #define MIN_BLOCK_SIZE 8
+//Large block pages are pages where the block is larger than 4096 bytes
+//So the block takes up the entire page
+//LARGE_BLOCK_PAGE_SIZE_INDEX = Log2(8192) - Log2(8)
+ #define LARGE_BLOCK_PAGE_SIZE_INDEX 10
 
- #define LARGE_BLOCK_PAGE_SIZE 10
+//Min block size 8 bytes
+//FREELIST_SIZE = log2(4096) - log2(8) + 1
+#define FREELIST_SIZE 10
 
-//Max block size = 8k == 2^13
-
-
+//Blocks are a singly linked list of free blocks
 typedef struct Block_ {
     struct Block_* nextBlock;
 } Block;
 
-//All pages have a block at the beginning containing metadata.  This does not count as an allocated block
-//except in the first page
+//AHeader for each page, containing the kma_page_t and the number of allocated blocks
+//so that the page can be deallocated when numAllocatedBlocks goes to 0
+//The header is not counted as an allocated block
 typedef struct Page_ {
     kma_page_t* page_t;
     int numAllocatedBlocks;
 } Page;
 
 //A LargeBlockPage is a block that can take up the entire page
+//No need to keep track of the number of allocated blocks because the entire page is one block
 typedef struct LargeBlockPage_ {
     kma_page_t* page_t;
 } LargeBlockPage;
 
-//FREELIST_SIZE = log2(4096) - log2(8) + 1
-#define FREELIST_SIZE 10
 
-//In the first page, the first block counts as an allocated block since it contains the free list
-//This ensures that the free list is never deleted
+
+//Header for the first page
+//Contains the power of 2 lists of free blocks
+//Like Page, also contains a pointer to the kma_page_t and the number of allocated blocks for page deallocation
+//The header is not counted as an allocated block
 typedef struct FirstPage_ {
     kma_page_t* page_t;
     int numAllocatedBlocks;
     Block* freeList[FREELIST_SIZE];
-    //freeList[0] contains 8B blocks
+    //freeList[0] contains 8B blocks (the minimum block size)
     //freeList[1] contains 16B blocks
     //...
     //freeList[9] contains 4KB blocks
@@ -91,50 +97,79 @@ typedef struct FirstPage_ {
 
 /************Global Variables*********************************************/
 
+//Pointer to the first page that contains the free list heads
 static kma_page_t* firstPageT = NULL;
 
 /************Function Prototypes******************************************/
+//NOTE - All size parameters, except in malloc and free, are Log2(size) - 3, the index into the freelist
 
+//Returns the buddy address of a block, given the size of the block
 inline Block* GetBuddy(Block* block, int blockSize);
 
+//Returns the page that a pointer is contained in
 inline Page* GetPageFromPointer(void* pointer);
 
+//Returns the pointer to the beginning of the usable segment of a LargeBlockPage
 inline void* GetPointerFromLargeBlockPage(LargeBlockPage* largeBlockPage);
 
+//Returns the LargeBlockPage associated with a pointer from a free with pagesize > 4096
 inline LargeBlockPage* GetLargeBlockPageFromPointer(void* pointer);
 
+//Returns the first page, which contains the free list heads
 inline FirstPage* GetFirstPage();
 
-Block* SplitFreeBlock(Block* block, int requestedSize, int currentSize);
-
-void InitializeFirstPage();
-
-void AddBlockToFreeList(Block* toAdd, int size); //O(1)
-
-Block* RemoveBlockFromFreeList(Block* toRemove, int size); //O(n)
-
-Block* FindSmallestBlockOfAtLeastSizeAndRemoveFromFreeList(int requestedSize, int* actualSize); //O(1)
-
-int IsAllocated(void* block);
-
+//Returns the next power of 2 of a number
 inline unsigned int NextPowerOf2(unsigned int number);
 
+//Returns the log base 2 of a number
 inline unsigned int Log2(unsigned int number);
 
-void PrintFreeList();
-
-void AllocatePage();
-
+//Returns the lower addressed block
 inline Block* LowerBlock(Block* block1, Block* block2);
 
+//Splits a block into the requested size, by repeatedly splitting the block in half
+//and putting the right half into the list of free blocks
+Block* SplitFreeBlock(Block* block, int requestedSize, int currentSize);
+
+//Initializes the first page, which contains the power of 2 free list heads
+void InitializeFirstPage();
+
+//Inserts a block into the head of the size-appropriate free list
+//O(1) operation
+void AddBlockToFreeList(Block* toAdd, int size);
+
+//Removes a block from the size-appropriate free list
+//Returns the block if it was removed, and NULL if the block is not in the free list
+//O(n) operation since we need to traverse the entire free list of the appropriate size
+//for the block
+Block* RemoveBlockFromFreeList(Block* toRemove, int size);
+
+//Searches the power of 2 free lists starting with blocks of the requestedSize
+//If no blocks of the requested size are available, it will attempt to find the next smallest size of
+//block big enough.  Returns the found block (does not split it), and places the size of the
+//found block into actualSize, which must not be null
+//O(1) with respect to the size of any free list
+Block* FindSmallestBlockOfAtLeastSizeAndRemoveFromFreeList(int requestedSize, int* actualSize);
+
+//Allocates a new page and places the new free blocks of that page in the free list
+void AllocatePage();
+
+//Recursively attempts to coalesce a block with its buddies
+//Returns the coalesced block and places the size of the coalesced block in coalescedSize,
+//which must not be null
 Block* CoalesceBlock(Block* block, int initialSize, int* coalescedSize);
 
+//Frees a page
 void FreePage(Page* page);
 
+//Frees the first page if the first page is the only page left
+//and there are no allocated blocks in the first page
 void AttemptToFreeFirstPage();
 
+//Allocates a block larger than 4096 bytes, which requires allocating a new page
 LargeBlockPage* AllocateLargeBlockPage();
 
+//Frees a block larger than 4096, which is a block that takes up an entire page
 void FreeLargeBlockPage(LargeBlockPage* block);
 
 /************External Declaration*****************************************/
@@ -184,15 +219,16 @@ inline unsigned int Log2(unsigned int number) {
     return log2;
 }
 
-//Size is the size of the entire block in bytes.  It does not take into account space to store block metadata
-//(ie size, allocation status)
 Block* SplitFreeBlock(Block* block, int requestedSize, int currentSize) {
-    //printf("Splitting block %p of size %i into size %i\n", block, currentSize, requestedSize);
     Block* currentBlock = block;
     while(currentSize > requestedSize) {
-        int newSize = currentSize - 1; //New blocks are half the size of the old ones
+        //New size is half the previous size
+        //-1 instead of /2 or >>1 because we are working with the Log2 of the size
+        int newSize = currentSize - 1;
         Block* leftBlock = block;
+        //8 << newSize returns the int size from the Log2 size
         Block* rightBlock = (Block*)((size_t)block + (8 << newSize));
+        //Each right half is added to the free list
         AddBlockToFreeList((Block*)rightBlock, newSize);
         currentBlock = leftBlock;
         currentSize = newSize;
@@ -202,6 +238,7 @@ Block* SplitFreeBlock(Block* block, int requestedSize, int currentSize) {
 
 void AddBlockToFreeList(Block* toAdd, int size) {
     FirstPage* firstPage = GetFirstPage();
+    //Linked list insert to head of list
     toAdd->nextBlock = firstPage->freeList[size];
     firstPage->freeList[size] = toAdd;
 }
@@ -210,16 +247,20 @@ Block* RemoveBlockFromFreeList(Block* toRemove, int size) {
     FirstPage* firstPage = GetFirstPage();
     Block* block = firstPage->freeList[size];
     Block* previousBlock = NULL;
+    //Search list to find block
     while(block != NULL && block != toRemove) {
         previousBlock = block;
         block = block->nextBlock;
     }
+    //If we can't find it in the list, return NULL
     if(block == NULL) {
         return NULL;
     }
+    //If we're removing the head of the list, replace the head with the next block
     if(firstPage->freeList[size] == toRemove) {
         firstPage->freeList[size] = toRemove->nextBlock;
     }
+    //Update the previousBlock to maintain the list structure
     if(previousBlock != NULL) {
         previousBlock->nextBlock = toRemove->nextBlock;
     }
@@ -228,6 +269,7 @@ Block* RemoveBlockFromFreeList(Block* toRemove, int size) {
 
 void InitializeFirstPage() {
     if(firstPageT == NULL) {
+        //Allocate a new page
         firstPageT = get_page();
         FirstPage* firstPage = GetFirstPage();
         firstPage->numAllocatedBlocks = 0;
@@ -235,65 +277,46 @@ void InitializeFirstPage() {
         for(i = 0; i < FREELIST_SIZE; i++) {
             firstPage->freeList[i] = NULL;
         }
-        SplitFreeBlock((Block*)firstPage, 3, LARGE_BLOCK_PAGE_SIZE);
-        //PrintFreeList();
-    }
-}
-
-void PrintFreeList() {
-    FirstPage* firstPage = firstPageT->ptr;
-    int i;
-    for(i = 0; i < FREELIST_SIZE; i++) {
-        int currentSize = 8 << i;
-        printf("Size %i blocks:\n", currentSize);
-        Block* currentBlock = firstPage->freeList[i];
-        while(currentBlock != NULL) {
-            printf("  %p\n", currentBlock);
-            currentBlock = currentBlock->nextBlock;
-
-        }
+        //Ensure that the header is an allocated block, and place the remaining blocks in the free list
+        //3 is the Log2 of the next power of 2 of the first page header
+        SplitFreeBlock((Block*)firstPage, 3, LARGE_BLOCK_PAGE_SIZE_INDEX);
     }
 }
 
 
 Block* FindSmallestBlockOfAtLeastSizeAndRemoveFromFreeList(int requestedSize, int* actualSize) {
-    //printf("Finding block of size %i\n", requestedSize);
     FirstPage* firstPage = GetFirstPage();
     Block* block = NULL;
+    //Loop through the power of 2 lists, starting with the requested size,
+    //but search larger sizes if necessary
     int size;
     for(size = requestedSize; size < FREELIST_SIZE; size++) {
-        //printf("Size %i\n", 8 << i);
         block = firstPage->freeList[size];
-        //printf("Block %p\n", block);
         if(block != NULL) {
             firstPage->freeList[size] = block->nextBlock;
             break;
         }
     }
-
     *actualSize = size;
-    //if(block != NULL) {
-       // printf("Found block %p of size %i\n", block, *actualSize);
-    //}
     return block;
 }
 
 void AllocatePage() {
+    //Allocate a new page
     kma_page_t* page_t = get_page();
     Page* page = (Page*)page_t->ptr;
     page->page_t = page_t;
     page->numAllocatedBlocks = 0;
-    SplitFreeBlock((Block*)page, 0, LARGE_BLOCK_PAGE_SIZE);
-    //PrintPage((Page*)page);
-    //PrintFreeList();
+    //Ensure the header is an allocated block, and place the remaining blocks in the free list
+    SplitFreeBlock((Block*)page, 0, LARGE_BLOCK_PAGE_SIZE_INDEX);
 }
 
 Block* CoalesceBlock(Block* block, int initialSize, int* coalescedSize) {
+    //At each power of 2 size starting with the initial size, attempt to coalesce
+    //the block with its buddy
     int size = initialSize;
     Block* buddy = GetBuddy(block, size);
-    //printf("Buddy %p\n", buddy);
-    while(size < LARGE_BLOCK_PAGE_SIZE && RemoveBlockFromFreeList(buddy, size) != NULL) {
-        //printf("Coalescing size %i to size %i\n", size, size * 2);
+    while(size < LARGE_BLOCK_PAGE_SIZE_INDEX && RemoveBlockFromFreeList(buddy, size) != NULL) {
         Block* leftBlock = LowerBlock(block, buddy);
         size++;
         block = leftBlock;
@@ -304,102 +327,93 @@ Block* CoalesceBlock(Block* block, int initialSize, int* coalescedSize) {
 }
 
 void FreePage(Page* page) {
-    //printf("Freeing page %p\n", page);
     Block* pageBlock = (Block*)page;
     int coalescedSize;
+    //Calling coalesce block with the page header will remove all the blocks
+    //in this page from the free list, coalescing them into one block
+    //of PAGESIZE, which is not added into the free list
+    //This has the effect of removing all blocks in this page from the freelist
     CoalesceBlock(pageBlock, 0, &coalescedSize);
-    //PrintPage(page);
     free_page(page->page_t);
 }
 
 void AttemptToFreeFirstPage() {
     FirstPage* firstPage = GetFirstPage();
     kma_page_stat_t* currentPageStats = page_stats();
+    //If the first page is the only page, and it has no allocated blocks, then free it
     if(firstPage->numAllocatedBlocks == 0 && currentPageStats->num_in_use == 1) {
-        //printf("Freeing first page\n");
         free_page(firstPageT);
         firstPageT = NULL;
     }
 }
 
-LargeBlockPage* AllocateLargeBlock() {
+LargeBlockPage* AllocateLargeBlockPage() {
     kma_page_t* page_t = get_page();
     LargeBlockPage* largeBlockPage = (LargeBlockPage*)page_t->ptr;
     largeBlockPage->page_t = page_t;
-    //printf("Allocating large block %p\n", largeBlock);
+    //No need to deal with marking the header as allocated since large block pages are never
+    //added to the free list
     return largeBlockPage;
 }
 
 void FreeLargeBlockPage(LargeBlockPage* block) {
-    //printf("Freeing large block %p\n", block);
     free_page(block->page_t);
 }
 
 void* kma_malloc(kma_size_t size) {
     InitializeFirstPage();
+
+    //Compute the size index
     int blockSize = Log2(NextPowerOf2(size)) - 3;
-    //printf("Requested block of size %i, allocating block of size %i\n", size, blockSize);
-    if(blockSize == LARGE_BLOCK_PAGE_SIZE) {
-        LargeBlockPage* largeBlockPage = AllocateLargeBlock();
+
+    if(blockSize == LARGE_BLOCK_PAGE_SIZE_INDEX) {
+        LargeBlockPage* largeBlockPage = AllocateLargeBlockPage();
         return GetPointerFromLargeBlockPage(largeBlockPage);
     }
-    //PrintFreeList();
+
+    //Try to find a big enough block; if we fail, allocate a new page and try again
+    //We are certain to find one on the second try
     int actualSize;
     Block* toAllocate = FindSmallestBlockOfAtLeastSizeAndRemoveFromFreeList(blockSize, &actualSize);
     if(toAllocate == NULL) {
-        //printf("Could not find free block.  Need to request another page\n");
         AllocatePage();
         toAllocate = FindSmallestBlockOfAtLeastSizeAndRemoveFromFreeList(blockSize, &actualSize);
     }
+    //Split the found block into the size we requested
     toAllocate = SplitFreeBlock(toAllocate, blockSize, actualSize);
-    Page* pageOfBlockToAllocate = GetPageFromPointer((void*)toAllocate);
-    pageOfBlockToAllocate->numAllocatedBlocks++;
-    /*printf("Incrementing number of allocated blocks in page %p, now %i allocated blocks\n",
-           pageOfBlockToAllocate,
-           pageOfBlockToAllocate->numAllocatedBlocks
-           );*/
-    //printf("Allocating block %p of size %i\n", toAllocate, GetSize(toAllocate));
-    //PrintPage(pageOfBlockToAllocate);
-    //PrintFreeList();
 
-    //getchar();
-    //PrintFreeList();
-    //printf("\n\n\n");
+    //Increment the allocated block counter on the appropriate page
+    Page* pageOfBlockToAllocate = GetPageFromPointer(toAllocate);
+    pageOfBlockToAllocate->numAllocatedBlocks++;
+
     return toAllocate;
 }
 
 
-
 void kma_free(void* ptr, kma_size_t size) {
-
     Block* block = (Block*)ptr;
     int initialSize = Log2(NextPowerOf2(size)) - 3;
-    //printf("Freeing block %p of size %i\n", ptr, initialSize);
-    //getchar();
-    if(initialSize == LARGE_BLOCK_PAGE_SIZE) {
-        //printf("Freeing large block %p\n", GetLargeBlockPageFromPointer(ptr));
+
+    if(initialSize == LARGE_BLOCK_PAGE_SIZE_INDEX) {
         FreeLargeBlockPage(GetLargeBlockPageFromPointer(ptr));
     } else {
-        Page* page = GetPageFromPointer((void*)block);
-        //PrintFreeList();
-        //printf("Freeing block %p from page %p\n", block, page);
-        //PrintPage(page);
+        //Decrement the allocated block counter on the appropriate page
+        Page* page = GetPageFromPointer(block);
+        page->numAllocatedBlocks--;
+
+        //Attempt to coalesce the block, and add the coalesced block
+        //back to the free list
         int coalescedSize;
         block = CoalesceBlock(block, initialSize, &coalescedSize);
-        //printf("Adding block %p of size %i to free list\n", block, coalescedSize);
         AddBlockToFreeList(block, coalescedSize);
-        page->numAllocatedBlocks--;
-        //printf("Page %p has %i allocated blocks\n", page, page->numAllocatedBlocks);
+
+        //If there are no allocated blocks on the page, free the page
         if(page->numAllocatedBlocks == 0 && page != (Page*)GetFirstPage()) {
             FreePage(page);
         }
-        //PrintFreeList();
+
         AttemptToFreeFirstPage();
     }
-
-    //getchar();
-    //printf("\n\n\n");
-
 }
 
 
