@@ -72,9 +72,10 @@ DESIGN
 		blocks of larger size can be divided. This also makes it easier to separate and coalesce.
 
 	kma_bud
-		The buddy system works largely like the resource map. There are some minor differences in the
+		The buddy system works largely like the resource map. There are some differences in the
 		block and page structtures. The block is now defined only by the next block parameter and its
-		own base pointer. Using these two pieces of information we can calculate its size.
+		own base pointer. Using these two pieces of information we can calculate its size. Additionally,
+                the size of blocks is now limited to powers of 2, from 8-4KB. 
 
 		Pages are now defined by the kma_page t structure and a numAllocatedblocks variable that
 		shows how many blocks within the page are allocated.
@@ -156,5 +157,25 @@ ANALYSIS
   p2fl and bud are faster since they require o(1) time to find a block.  kma_bud required o(n) time to free a block, but n was smaller
   than in resource map.  Additionally, kma_p2fl did not require coalescing, which probably contributed to its faster runtime.
 
-AUTHOR
+Utilization
+  
+  kma_rm
+  Looking at the graph of utilization for resource map we see that the allocated and requested are about equal up until
+  about 2000 requests. After that, the allocated pulls away from the requested, allocating more pages than absolutely necessary.
+  This is due to segmentation and coalescing which create blocks that are either too small or too large for the request. Separation
+  remains constant from about 3000 to 17000 requests where we being to free enough memory so that the request and allocation end up
+  as the near the same again and all pages are returned. All in all, the resource map is fairly good at utilizing memory due to the
+  dynamic sizing and resizing of blocks.
 
+  kma_bud
+  The graph for the buddy system shows a quite a bit of under-utilization. The buddy system only allocates blocks as multiples of 8
+  so requests just over those values get bumped up to a higher order block and waste a lot of the allocated memory. From about 1000
+  requests onward, the buddy system over allocates by at least 1E6. At some points it is near 2E6. This large waste is the tradeoff
+  for faster allocation.
+
+  kma_p2fl
+  The graph for powers of two free lists is largely similar to that for the buddy system. Both use set sizes of blocks and so they
+  run into the same problems. P2fl actually has the worst utilization out of any of our methods. It separates at around 1000 requests
+  and then the separation only gets worse until everything is freed at the end. At its worst we are running nearly 8.5E6 over the
+  required memory. The trade off is that p2fl is by far the fastest method for memory allocation we have implemented/tested.
+  
