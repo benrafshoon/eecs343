@@ -1,0 +1,131 @@
+KMA
+
+NAME
+	kma - kernel memory allocator using a variety of different allocation systems
+
+SYNOPSIS
+	kma_[bud, rm, p2fl]
+
+DESCRIPTION
+	For memory requests smaller than a page, kma is used to allocate and
+	free smaller blocks of memory. kma provides functions kma_malloc and kma_free
+	Addtionally, kma provides stats on page usage in the form of utilization factor and
+	(worst/average) free/alloc latencies.
+
+	kma allows for the allocation of memory by malloc given the size of the memory needed.
+	It allows for the freeing of memory given the address of the start of the block to be freed
+	and the size of the block.
+
+	kma works in conjunction with kma_page.[hc] to allocate and free pages that are split into blocks
+
+	Options for kma are loaded as their own source file of the form kma_[x] where x indicates the
+	particular allocation systemt to be used.
+
+OPTIONS
+	kma_rm
+		Loads the kernel memory allocator using a resource map. Memory is allocated from a 
+		free list of all available blocks of arbitrary size. A search of the list returns blocks
+		of a size large enough for the request. Blocks are split, removed, replaced, and coalesced
+		as they are malloc'd and freed.
+
+	kma_bud
+		Loads the kernel memory allocator using the buddy system. Blocks are organized by size.
+		Free blocks are placed in a list of all available blocks. When a block is removed it creates
+		a buddy whose address is a simple bitwise operator of its own. Blocks are easily replaced
+		and coaleseced this way. Organization by size makes finding blocks for allocation simple.
+
+	kma_p2fl
+		Loads the kernel memory allocator using a power-of-two free list. Available blocks are
+		organized in a list with each entry marking a power of two. Withing each power of two is a
+		list of blocks that size. Memory is thus allocated in powers of two so that a block big
+		enough for the request is chosen. Blocks are freed by inserting them back into the list
+		of their size.
+
+DESIGN
+	kma_rm
+		The resource map is designed around the block structure. A block contains two parameters:
+		size-the size of free memory and next-the address of the next available block.
+		The block itself serves as a pointer to a base address. Using this information we are able
+		to create a linked list of blocks sorted by address. We chose to have a list of only the free
+		blocks.
+		
+		The list of free blocks allows us traverse the available memory map. Our entry point is the
+		first block, created from a first page. When we run kma_malloc we start at the
+		address of the first block. From there we can use the data on next block to find the next
+		free block and that block's next until we find a block large enough for the allocation. If
+		the page is too large we are able to split it up and only take what we need. This is done by
+		deleting the current block from the list and inserting the remaining memory as a block in its
+		place. As such, resource map utilizes memory quite well. If we are not able to find a block
+		large enough, we can add a new page and make it into a block. We then perform the split on
+		the new block.
+
+		For kma_free, we are interested in finding holes. If we find a gap in addresses that contains
+		the address of the freed block we simply insert it into the list there. After an insertion
+		we look at the previous and next blocks in order to coalesce. If the next or previous is free
+		we change the necessary next-block value and size to reflect the coalesced block.
+
+		Within kma_free we also look to see if there are any open blocks the size of a page. If we
+		find one, we remove this block from the available list and run freepage to free it.
+
+		We chose to limit the size of blocks to multiples of 8. 8 is the minimum block size necessary
+		to store the block structure so by defining this as our smallest block size we know that all
+		blocks of larger size can be divided. This also makes it easier to separate and coalesce.
+
+	kma_bud
+		The buddy system works largely like the resource map. There are some minor differences in the
+		block and page structtures. The block is now defined only by the next block parameter and its
+		own base pointer. Using these two pieces of information we can calculate its size. 
+		
+		Pages are now defined by the kma_page t structure and a numAllocatedblocks variable that 
+		shows how many blocks within the page are allocated.
+
+		We also have a new structure: LargeBlockPage which is a special case accounting for blocks
+		that are larger than a page. This is done by adding page onto a block.
+		
+		The first page serves as our entry point into the system and contains a list of all the free
+		pages. We traverse through this list of pages looking for a block of a size large enough and
+		then remove it from our list. We then split it and return the unused portion back to the list.
+		We make a note in the page containing the block that we have allocated it.
+		
+		The major difference in the buddy system comes with kma_free. Here we first test if the block
+		is larger than a page and free the associated LargeBlockPage is needed. We then use the size
+		of the block and its base to find its buddy by a bitwise operation. We can then coalesce the
+		block with its buddy and create a new block with their combined size. This operation is much
+		faster than in the resource map as it no longer requires a search through the free list.
+		We then make sure to remove the buddy from the list (it is now in the coalesced) and decrease
+		the count of allocated blocks in the page.
+
+		After all of our blocks are free we then look to free our pages. This is done easily by
+		checking the numAllocatedBlocks variable. If it is at 0 then none of the page is allocated
+		and we can free it using freepage.
+
+	kma_p2fl
+		The power of two free lists is composed of a page list, a buffer list, and an array of 10
+		lists. Each of the array indexes indicate the size of the blocks within the associated free
+		list. (Ranging from 32 to 8KB). Essentially each index contains a linked list of all the 
+		available blocks of a given size. e.g. array[0] contains the list of all available blocks
+ 		sized 8. The last index in the array is for the size of a page and contains the list of pages.
+ 		
+		Dividing up the blocks up into discrete sizes allows us to easily and quickly search for the
+		block size that best fits the request and select a block of that size. Using kma_malloc, we
+ 		first find the index that corresponds to the size necessary for allocation. This is the best
+		fit within our system. We then traverse the associated list until we find a free block. This
+		block is then allocated and removed from the index's list.
+
+		When we free a block with kma_free we simply find index like before and then insert the freed
+		block back into the list, making it available once again. 
+
+		The list of pages allows us to track the number of pages in use. We do this by tracking
+		the blocks in crurrently allocated. When a page is found to have none of its associated blocks
+		allocated it can be freed and removed from the list of pages. When all the pages are used
+		and a block cannot be found, we can add another page to the list.
+
+		The power of 2 lists works quickly to find a block of necessary size. However it is 
+		not as efficient at utilizing memory due to the set sizes of these blocks.
+
+DATA
+
+ANALYSIS
+
+AUTHOR
+
