@@ -39,10 +39,10 @@ OBJS = ${SRCS:.c=.o}
 
 all: ${PROGS}
 
-#test-reg: handin
-#	HANDIN=`pwd`/${TEAM}-${VERSION}-${PROJ}.tar.gz;\
-#	cd testsuite;\
-#	bash ./run_testcase.sh $${HANDIN};
+test-reg: handin
+	HANDIN=`pwd`/${TEAM}-${VERSION}-${PROJ}.tar.gz;\
+	cd testsuite;\
+	bash ./run_testcase.sh $${HANDIN};
 
 handin: cleanAll
 	${TAR} ${TEAM}-${VERSION}-${PROJ}.tar ${DELIVERY}

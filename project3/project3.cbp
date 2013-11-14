@@ -6,7 +6,7 @@
 		<Option makefile_is_custom="1" />
 		<Option pch_mode="2" />
 		<Option compiler="gcc" />
-		<Option virtualFolders="Makefile/;Client/;" />
+		<Option virtualFolders="Makefile/;Client/;Test Suite/;" />
 		<Build>
 			<Target title="Debug">
 				<Option output="bin/Debug/project3" prefix_auto="1" extension_auto="1" />
@@ -44,6 +44,24 @@
 		<Unit filename="seats.h" />
 		<Unit filename="selectSeats.html">
 			<Option virtualFolder="Client/" />
+		</Unit>
+		<Unit filename="testsuite/1.trace">
+			<Option virtualFolder="Test Suite/" />
+		</Unit>
+		<Unit filename="testsuite/2.trace">
+			<Option virtualFolder="Test Suite/" />
+		</Unit>
+		<Unit filename="testsuite/3.trace">
+			<Option virtualFolder="Test Suite/" />
+		</Unit>
+		<Unit filename="testsuite/config.test">
+			<Option virtualFolder="Test Suite/" />
+		</Unit>
+		<Unit filename="testsuite/http_test.py">
+			<Option virtualFolder="Test Suite/" />
+		</Unit>
+		<Unit filename="testsuite/run_testcase.sh">
+			<Option virtualFolder="Test Suite/" />
 		</Unit>
 		<Unit filename="thread_pool.c">
 			<Option compilerVar="CC" />
