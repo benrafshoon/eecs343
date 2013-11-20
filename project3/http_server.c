@@ -23,30 +23,54 @@ void shutdown_server(int);
 int listenfd;
 threadpool_t* threadpool;
 
+static void threadTestWork(void* argument) {
+    int* number = (int*)argument;
+    printf("\n\nTest task %i\n", *number);
+    sleep(1);
+    printf("Test task %i done\n\n\n", *number);
+    free(argument);
+}
+
 int main(int argc,char *argv[])
 {
+    threadpool_t* threadPool = threadpool_create(10, 3);
+
+    sleep(1);
+
+    int c;
+    for(c = 0; c < 10; c++) {
+        int* number = (int*)malloc(sizeof(int));
+        *number = c;
+        threadpool_add_task(threadPool, &threadTestWork, number);
+    }
+
+    sleep(15);
+    threadpool_destroy(threadPool);
+    return 0;
+
+    /*
     int flag, num_seats = 20;
     int connfd = 0;
     struct sockaddr_in serv_addr;
 
     char send_buffer[BUFSIZE];
-    
-    listenfd = 0; 
+
+    listenfd = 0;
 
     int server_port = 8080;
 
     if (argc > 1)
     {
         num_seats = atoi(argv[1]);
-    } 
+    }
 
     if (server_port < 1500)
     {
         fprintf(stderr,"INVALID PORT NUMBER: %d; can't be < 1500\n",server_port);
         exit(-1);
     }
-    
-    if (signal(SIGINT, shutdown_server) == SIG_ERR) 
+
+    if (signal(SIGINT, shutdown_server) == SIG_ERR)
         printf("Issue registering SIGINT handler");
 
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -66,7 +90,7 @@ int main(int argc,char *argv[])
     // Load the seats;
     load_seats(num_seats); //TODO read from argv
 
-    // set server address 
+    // set server address
     memset(&serv_addr, '0', sizeof(serv_addr));
     memset(send_buffer, '0', sizeof(send_buffer));
     serv_addr.sin_family = AF_INET;
@@ -87,10 +111,11 @@ int main(int argc,char *argv[])
     while(1)
     {
         connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
-        
+
         // single threaded
         handle_connection(&connfd);
     }
+    */
 }
 
 void shutdown_server(int signo){
