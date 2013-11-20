@@ -14,9 +14,11 @@
 #include "thread_pool.h"
 #include "seats.h"
 #include "util.h"
+#include "pthread.h"
 
 #define BUFSIZE 1024
 #define FILENAMESIZE 100
+#define NUM_THREADS 50
 
 void shutdown_server(int);
 
@@ -30,23 +32,23 @@ int main(int argc,char *argv[])
     struct sockaddr_in serv_addr;
 
     char send_buffer[BUFSIZE];
-    
-    listenfd = 0; 
+
+    listenfd = 0;
 
     int server_port = 8080;
 
     if (argc > 1)
     {
         num_seats = atoi(argv[1]);
-    } 
+    }
 
     if (server_port < 1500)
     {
         fprintf(stderr,"INVALID PORT NUMBER: %d; can't be < 1500\n",server_port);
         exit(-1);
     }
-    
-    if (signal(SIGINT, shutdown_server) == SIG_ERR) 
+
+    if (signal(SIGINT, shutdown_server) == SIG_ERR)
         printf("Issue registering SIGINT handler");
 
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -62,11 +64,14 @@ int main(int argc,char *argv[])
     // Set the number of threads and size of the queue
     // threadpool = threadpool_create(0,0);
 
-
+    //create an array of threads
+    pthread_t threads[NUM_THREADS];
+    int rc; //the particular thread
+    int t=0; //index in the threads
     // Load the seats;
     load_seats(num_seats); //TODO read from argv
 
-    // set server address 
+    // set server address
     memset(&serv_addr, '0', sizeof(serv_addr));
     memset(send_buffer, '0', sizeof(send_buffer));
     serv_addr.sin_family = AF_INET;
@@ -87,10 +92,14 @@ int main(int argc,char *argv[])
     while(1)
     {
         connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
-        
-        // single threaded
-        handle_connection(&connfd);
+        rc = pthread_create(&threads[t], NULL, handle_connection, (void *) &connfd);
+        if (rc){
+         printf("ERROR; return code from pthread_create() is %d\n", rc);
+         exit(-1);
+        }
+        t++;
     }
+    pthread_exit(NULL);
 }
 
 void shutdown_server(int signo){

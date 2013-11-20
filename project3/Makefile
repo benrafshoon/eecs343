@@ -52,7 +52,7 @@ handin: cleanAll
 	${CC} *.c  *.h
 
 http_server: ${OBJS}
-	${CC} ${OBJS} -o $@  -lpthread
+	${CC} ${OBJS} -o $@  -pthread
 
 clean:
 	${RM} -f *.o *~ *.h.gch

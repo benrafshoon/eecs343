@@ -13,6 +13,7 @@
 
 
 #include "seats.h"
+#include "pthread.h"
 
 #define BUFSIZE 1024
 
@@ -22,7 +23,7 @@ int get_line(int, char*,int);
 
 int parse_int_arg(char* filename, char* arg);
 
-void handle_connection(int* connfd_ptr)
+void *handle_connection(int* connfd_ptr)
 {
     int connfd = *(connfd_ptr);
 
@@ -48,7 +49,7 @@ void handle_connection(int* connfd_ptr)
                               "Content-type: text/html\r\n\r\n"\
                               "<html><body><h2>BAD REQUEST</h2>"\
                               "</body></html>\n";
-                              
+
 
     // first read loop -- get request and headers
 
@@ -58,9 +59,9 @@ void handle_connection(int* connfd_ptr)
     // get headers
 
     //Expection Format: 'GET filenane.txt HTTP/1.X'
-    
+
     get_line(connfd, buf, BUFSIZE);
-    
+
     //parse out instruction
     while( !isspace(buf[j]) && (i < sizeof(instr) - 1))
     {
@@ -112,7 +113,7 @@ void handle_connection(int* connfd_ptr)
             break;
     }
     length = i;
-    
+
     char resource[length+1];
 
     if (length > strlen(file)) {
@@ -121,20 +122,20 @@ void handle_connection(int* connfd_ptr)
 
     strncpy(resource, file, length);
     resource[length] = 0;
-    
+
     int seat_id = parse_int_arg(file, "seat=");
     int user_id = parse_int_arg(file, "user=");
     int customer_priority = parse_int_arg(file, "priority=");
-    
+
     // Check if the request is for one of our operations
     if (strncmp(resource, "list_seats", length) == 0)
-    {  
+    {
         list_seats(buf, BUFSIZE);
         // send headers
         writenbytes(connfd, ok_response, strlen(ok_response));
         // send data
         writenbytes(connfd, buf, strlen(buf));
-    } 
+    }
     else if(strncmp(resource, "view_seat", length) == 0)
     {
         view_seat(buf, BUFSIZE, seat_id, user_id, customer_priority);
@@ -142,7 +143,7 @@ void handle_connection(int* connfd_ptr)
         writenbytes(connfd, ok_response, strlen(ok_response));
         // send data
         writenbytes(connfd, buf, strlen(buf));
-    } 
+    }
     else if(strncmp(resource, "confirm", length) == 0)
     {
         confirm_seat(buf, BUFSIZE, seat_id, user_id, customer_priority);
@@ -165,7 +166,7 @@ void handle_connection(int* connfd_ptr)
         if ((fd = open(resource, O_RDONLY)) == -1)
         {
             writenbytes(connfd, notok_response, strlen(notok_response));
-        } 
+        }
         else
         {
             // send headers
@@ -174,12 +175,13 @@ void handle_connection(int* connfd_ptr)
             int ret;
             while ( (ret = read(fd, buf, BUFSIZE)) > 0) {
                 writenbytes(connfd, buf, ret);
-            }  
+            }
             // close file and free space
             close(fd);
-        } 
+        }
     }
     close(connfd);
+    pthread_exit(NULL);
 }
 
 int get_line(int fd, char *buf, int size)
@@ -204,15 +206,15 @@ int get_line(int fd, char *buf, int size)
                     //we want to then return the line
                     //readnbytes(fd, &c, 1);
                     continue;
-                } 
-                else 
+                }
+                else
                 {
                     c = '\n';
                 }
             }
             buf[i] = c;
             i++;
-        } 
+        }
         else
         {
             c = '\n';
@@ -277,7 +279,7 @@ int parse_int_arg(char* filename, char* arg)
             {
                 seatnum = seatnum * 10 + (int) filename[i] - (int) '0';
                 continue;
-            } 
+            }
             else
             {
                 break;
