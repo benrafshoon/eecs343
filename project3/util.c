@@ -13,7 +13,6 @@
 
 
 #include "seats.h"
-#include "pthread.h"
 
 #define BUFSIZE 1024
 
@@ -23,7 +22,7 @@ int get_line(int, char*,int);
 
 int parse_int_arg(char* filename, char* arg);
 
-void *handle_connection(int* connfd_ptr)
+void handle_connection(int* connfd_ptr)
 {
     int connfd = *(connfd_ptr);
 
@@ -181,7 +180,6 @@ void *handle_connection(int* connfd_ptr)
         }
     }
     close(connfd);
-    pthread_exit(NULL);
 }
 
 int get_line(int fd, char *buf, int size)

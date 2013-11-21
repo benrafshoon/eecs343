@@ -25,32 +25,16 @@ void shutdown_server(int);
 int listenfd;
 threadpool_t* threadpool;
 
-static void threadTestWork(void* argument) {
+/*static void threadTestWork(void* argument) {
     int* number = (int*)argument;
     printf("\n\nTest task %i\n", *number);
     sleep(1);
     printf("Test task %i done\n\n\n", *number);
     free(argument);
-}
+}*/
 
 int main(int argc,char *argv[])
 {
-    threadpool_t* threadPool = threadpool_create(10, 3);
-
-    sleep(1);
-
-    int c;
-    for(c = 0; c < 10; c++) {
-        int* number = (int*)malloc(sizeof(int));
-        *number = c;
-        threadpool_add_task(threadPool, &threadTestWork, number);
-    }
-
-    sleep(15);
-    threadpool_destroy(threadPool);
-    return 0;
-
-    /*
     int flag, num_seats = 20;
     int connfd = 0;
     struct sockaddr_in serv_addr;
@@ -84,15 +68,8 @@ int main(int argc,char *argv[])
     flag = 1;
     setsockopt( listenfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag) );
 
-    // initialize the threadpool
-    // Set the number of threads and size of the queue
-    // threadpool = threadpool_create(0,0);
+    threadpool = threadpool_create(NUM_THREADS,NUM_THREADS);
 
-    //create an array of threads
-    pthread_t threads[NUM_THREADS];
-    int rc; //the particular thread
-    int t=0; //index in the threads
-    // Load the seats;
     load_seats(num_seats); //TODO read from argv
 
     // set server address
@@ -116,12 +93,7 @@ int main(int argc,char *argv[])
     while(1)
     {
         connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
-        rc = pthread_create(&threads[t], NULL, handle_connection, (void *) &connfd);
-        if (rc){
-         printf("ERROR; return code from pthread_create() is %d\n", rc);
-         exit(-1);
-        }
-        t++;
+        threadpool_add_task(threadpool, handle_connection, (void* ) &connfd);
     }
     pthread_exit(NULL);
 }

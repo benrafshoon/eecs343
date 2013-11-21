@@ -1,10 +1,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "seats.h"
 
 seat_t* seat_header = NULL;
+pthread_mutex_t seat_locks[20];
 
 char seat_state_to_char(seat_state_t);
 
@@ -14,7 +16,7 @@ void list_seats(char* buf, int bufsize)
     int index = 0;
     while(curr != NULL && index < bufsize+ strlen("%d %c,"))
     {
-        int length = snprintf(buf+index, bufsize-index, 
+        int length = snprintf(buf+index, bufsize-index,
                 "%d %c,", curr->id, seat_state_to_char(curr->state));
         if (length > 0)
             index = index + length;
@@ -56,6 +58,7 @@ void view_seat(char* buf, int bufsize,  int seat_id, int customer_id, int custom
 void confirm_seat(char* buf, int bufsize, int seat_id, int customer_id, int customer_priority)
 {
     seat_t* curr = seat_header;
+    pthread_mutex_lock (&seat_locks[seat_id]);
     while(curr != NULL)
     {
         if(curr->id == seat_id)
@@ -79,15 +82,16 @@ void confirm_seat(char* buf, int bufsize, int seat_id, int customer_id, int cust
         }
         curr = curr->next;
     }
+    pthread_mutex_unlock (&seat_locks[seat_id]);
     snprintf(buf, bufsize, "Requested seat not found\n\n");
-    
+
     return;
 }
 
 void cancel(char* buf, int bufsize, int seat_id, int customer_id, int customer_priority)
 {
     printf("Cancelling seat %d for user %d\n", seat_id, customer_id);
-
+    pthread_mutex_lock (&seat_locks[seat_id]);
     seat_t* curr = seat_header;
     while(curr != NULL)
     {
@@ -112,8 +116,9 @@ void cancel(char* buf, int bufsize, int seat_id, int customer_id, int customer_p
         }
         curr = curr->next;
     }
+    pthread_mutex_unlock (&seat_locks[seat_id]);
     snprintf(buf, bufsize, "Seat not found\n\n");
-    
+
     return;
 }
 
@@ -122,13 +127,13 @@ void load_seats(int number_of_seats)
     seat_t* curr = NULL;
     int i;
     for(i = 0; i < number_of_seats; i++)
-    {   
+    {
         seat_t* temp = (seat_t*) malloc(sizeof(seat_t));
         temp->id = i;
         temp->customer_id = -1;
         temp->state = AVAILABLE;
         temp->next = NULL;
-        
+
         if (seat_header == NULL)
         {
             seat_header = temp;
