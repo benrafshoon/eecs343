@@ -113,6 +113,34 @@ void handle_connection(int connfd)
         //ignore headers -> (for now)
     }
 
+    char* resource = strtok(file, "?");
+    char* arg1Name = strtok(NULL, "=");
+    char* arg1Value = strtok(NULL, "&?");
+    char* arg2Name = strtok(NULL, "=");
+    char* arg2Value = strtok(NULL, "&?");
+
+    int seat_id = 0;
+    int user_id = 0;
+    int customer_priority = 0;
+
+    if(arg1Name != NULL) {
+        if(strcmp(arg1Name, "seat") == 0) {
+            seat_id = atoi(arg1Value);
+        } else if(strcmp(arg1Name, "user") == 0) {
+            user_id = atoi(arg1Value);
+        }
+    }
+    if(arg2Name != NULL) {
+        if(strcmp(arg2Name, "seat") == 0) {
+            seat_id = atoi(arg2Value);
+        } else if(strcmp(arg2Name, "user") == 0) {
+            user_id = atoi(arg2Value);
+        }
+    }
+    //printf("%s seat %i, user %i\n", resource, seat_id, user_id);
+
+
+/*
     int length;
     for(i = 0; i < strlen(file); i++)
     {
@@ -130,12 +158,11 @@ void handle_connection(int connfd)
     strncpy(resource, file, length);
     resource[length] = 0;
 
-    int seat_id = parse_int_arg(file, "seat=");
-    int user_id = parse_int_arg(file, "user=");
-    int customer_priority = parse_int_arg(file, "priority=");
+
+*/
 
     // Check if the request is for one of our operations
-    if (strncmp(resource, "list_seats", length) == 0)
+    if (strcmp(resource, "list_seats") == 0)
     {
         list_seats(buf, BUFSIZE);
         // send headers
@@ -143,7 +170,7 @@ void handle_connection(int connfd)
         // send data
         writenbytes(connfd, buf, strlen(buf));
     }
-    else if(strncmp(resource, "view_seat", length) == 0)
+    else if(strcmp(resource, "view_seat") == 0)
     {
         view_seat(buf, BUFSIZE, seat_id, user_id, customer_priority);
         // send headers
@@ -151,7 +178,7 @@ void handle_connection(int connfd)
         // send data
         writenbytes(connfd, buf, strlen(buf));
     }
-    else if(strncmp(resource, "confirm", length) == 0)
+    else if(strcmp(resource, "confirm") == 0)
     {
         confirm_seat(buf, BUFSIZE, seat_id, user_id, customer_priority);
         // send headers
@@ -159,7 +186,7 @@ void handle_connection(int connfd)
         // send data
         writenbytes(connfd, buf, strlen(buf));
     }
-    else if(strncmp(resource, "cancel", length) == 0)
+    else if(strcmp(resource, "cancel") == 0)
     {
         cancel(buf, BUFSIZE, seat_id, user_id, customer_priority);
         // send headers
