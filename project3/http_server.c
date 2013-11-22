@@ -15,6 +15,7 @@
 #include "seats.h"
 #include "util.h"
 #include "pthread.h"
+#include "file_cache.h"
 
 #define BUFSIZE 1024
 #define FILENAMESIZE 100
@@ -98,6 +99,10 @@ int main(int argc,char *argv[])
     // Load the seats;
 
 */
+    InitializeFileCache();
+    PreloadCache("reserveSeat.html");
+    PreloadCache("selectSeats.html");
+    PreloadCache("aquajet_full.png");
     threadpool = threadpool_create(NUM_THREADS, QUEUE_SIZE);
 
     load_seats(num_seats); //TODO read from argv
@@ -143,6 +148,7 @@ int main(int argc,char *argv[])
 void shutdown_server(int signo){
     threadpool_destroy(threadpool);
     unload_seats();
+    DeinitializeFileCache();
     close(listenfd);
     exit(0);
 }

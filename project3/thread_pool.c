@@ -42,8 +42,8 @@ struct threadpool_t {
  */
 static void* thread_do_work(void *threadPoolArg);
 static inline int IsTaskQueueEmpty(threadpool_t* threadPool);
-static int AddToTailOfQueue(threadpool_t* threadPool, void (* function)(int), int argument);
-static void RemoveFromHeadOfQueue(threadpool_t* threadPool, threadpool_task_t* destination);
+static inline int AddToTailOfQueue(threadpool_t* threadPool, void (* function)(int), int argument);
+static inline void RemoveFromHeadOfQueue(threadpool_t* threadPool, threadpool_task_t* destination);
 
 
 
@@ -51,7 +51,7 @@ static inline int IsTaskQueueEmpty(threadpool_t* threadPool) {
     return threadPool->task_queue_head == -1;
 }
 
-static int AddToTailOfQueue(threadpool_t* threadPool, void (* function)(int), int argument) {
+static inline int AddToTailOfQueue(threadpool_t* threadPool, void (* function)(int), int argument) {
     int added = 0;
     //printf("Add to tail\n");
 
@@ -78,7 +78,7 @@ static int AddToTailOfQueue(threadpool_t* threadPool, void (* function)(int), in
 
 }
 
-static void RemoveFromHeadOfQueue(threadpool_t* threadPool, threadpool_task_t* destination) {
+static inline void RemoveFromHeadOfQueue(threadpool_t* threadPool, threadpool_task_t* destination) {
     //printf("Remove from head\n");
     //printf("Head %i, Tail %i, Size %i\n", threadPool->task_queue_head, threadPool->task_queue_tail, threadPool->task_queue_size);
     threadpool_task_t* headTask = &threadPool->task_queue[threadPool->task_queue_head];

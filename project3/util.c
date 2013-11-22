@@ -11,10 +11,13 @@
 #include <stdbool.h>
 #include <errno.h>
 
+#include <time.h>
 
 #include "seats.h"
+#include "file_cache.h"
 
 #define BUFSIZE 1024
+
 
 int writenbytes(int,char *,int);
 int readnbytes(int,char *,int);
@@ -24,6 +27,13 @@ int parse_int_arg(char* filename, char* arg);
 
 void handle_connection(int connfd)
 {
+    long initialTime;
+    long finalTime;
+    struct timespec time;
+
+    clock_gettime(CLOCK_REALTIME, &time);
+    initialTime = time.tv_nsec;
+
     int fd;
     char buf[BUFSIZE+1];
     char instr[20];
@@ -58,6 +68,7 @@ void handle_connection(int connfd)
     //Expection Format: 'GET filenane.txt HTTP/1.X'
 
     get_line(connfd, buf, BUFSIZE);
+    //printf("line:%s\n", buf);
     //parse out instruction
     while( !isspace(buf[j]) && (i < sizeof(instr) - 1))
     {
@@ -102,6 +113,34 @@ void handle_connection(int connfd)
         //ignore headers -> (for now)
     }
 
+    char* resource = strtok(file, "?");
+    char* arg1Name = strtok(NULL, "=");
+    char* arg1Value = strtok(NULL, "&?");
+    char* arg2Name = strtok(NULL, "=");
+    char* arg2Value = strtok(NULL, "&?");
+
+    int seat_id = 0;
+    int user_id = 0;
+    int customer_priority = 0;
+
+    if(arg1Name != NULL) {
+        if(strcmp(arg1Name, "seat") == 0) {
+            seat_id = atoi(arg1Value);
+        } else if(strcmp(arg1Name, "user") == 0) {
+            user_id = atoi(arg1Value);
+        }
+    }
+    if(arg2Name != NULL) {
+        if(strcmp(arg2Name, "seat") == 0) {
+            seat_id = atoi(arg2Value);
+        } else if(strcmp(arg2Name, "user") == 0) {
+            user_id = atoi(arg2Value);
+        }
+    }
+    //printf("%s seat %i, user %i\n", resource, seat_id, user_id);
+
+
+/*
     int length;
     for(i = 0; i < strlen(file); i++)
     {
@@ -119,12 +158,11 @@ void handle_connection(int connfd)
     strncpy(resource, file, length);
     resource[length] = 0;
 
-    int seat_id = parse_int_arg(file, "seat=");
-    int user_id = parse_int_arg(file, "user=");
-    int customer_priority = parse_int_arg(file, "priority=");
+
+*/
 
     // Check if the request is for one of our operations
-    if (strncmp(resource, "list_seats", length) == 0)
+    if (strcmp(resource, "list_seats") == 0)
     {
         list_seats(buf, BUFSIZE);
         // send headers
@@ -132,7 +170,7 @@ void handle_connection(int connfd)
         // send data
         writenbytes(connfd, buf, strlen(buf));
     }
-    else if(strncmp(resource, "view_seat", length) == 0)
+    else if(strcmp(resource, "view_seat") == 0)
     {
         view_seat(buf, BUFSIZE, seat_id, user_id, customer_priority);
         // send headers
@@ -140,7 +178,7 @@ void handle_connection(int connfd)
         // send data
         writenbytes(connfd, buf, strlen(buf));
     }
-    else if(strncmp(resource, "confirm", length) == 0)
+    else if(strcmp(resource, "confirm") == 0)
     {
         confirm_seat(buf, BUFSIZE, seat_id, user_id, customer_priority);
         // send headers
@@ -148,7 +186,7 @@ void handle_connection(int connfd)
         // send data
         writenbytes(connfd, buf, strlen(buf));
     }
-    else if(strncmp(resource, "cancel", length) == 0)
+    else if(strcmp(resource, "cancel") == 0)
     {
         cancel(buf, BUFSIZE, seat_id, user_id, customer_priority);
         // send headers
@@ -165,19 +203,33 @@ void handle_connection(int connfd)
         }
         else
         {
-            // send headers
-            writenbytes(connfd, ok_response, strlen(ok_response));
-            // send file
-            int ret;
-            while ( (ret = read(fd, buf, BUFSIZE)) > 0) {
-                writenbytes(connfd, buf, ret);
+            FileCache* cacheEntry = GetCacheEntry(resource);
+
+            if(cacheEntry != NULL) {
+                writenbytes(connfd, ok_response, strlen(ok_response));
+                writenbytes(connfd, cacheEntry->buffer, cacheEntry->size);
+            } else {
+
+                // send headers
+                writenbytes(connfd, ok_response, strlen(ok_response));
+                // send file
+                int ret;
+                while ( (ret = read(fd, buf, BUFSIZE)) > 0) {
+                    writenbytes(connfd, buf, ret);
+                }
             }
+
+
             // close file and free space
             close(fd);
         }
     }
 
     close(connfd);
+
+    clock_gettime(CLOCK_REALTIME, &time);
+    finalTime = time.tv_nsec;
+    //printf("Request %s time %li us\n", file, (finalTime - initialTime)/100);
 }
 
 int get_line(int fd, char *buf, int size)
