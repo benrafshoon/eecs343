@@ -32,7 +32,7 @@ COMPRESS = gzip
 #CFLAGS = -g -Wall -D HAVE_CONFIG_H
 CFLAGS = -g -Wall -O2 -D HAVE_CONFIG_H
 
-DELIVERY = Makefile *.h *.c
+DELIVERY = Makefile *.h *.c aquajet_full.png selectSeats.html reserveSeat.html
 PROGS = http_server
 SRCS = http_server.c thread_pool.c util.c seats.c
 OBJS = ${SRCS:.c=.o}
@@ -52,7 +52,7 @@ handin: cleanAll
 	${CC} *.c  *.h
 
 http_server: ${OBJS}
-	${CC} ${OBJS} -o $@  -pthread
+	${CC} ${OBJS} -o $@  -lpthread
 
 clean:
 	${RM} -f *.o *~ *.h.gch

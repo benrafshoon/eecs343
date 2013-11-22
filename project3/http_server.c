@@ -24,7 +24,7 @@ void shutdown_server(int);
 
 int listenfd;
 threadpool_t* threadpool;
-
+/*
 static void threadTestWork(void* argument) {
     int* number = (int*)argument;
     printf("\n\nTest task %i\n", *number);
@@ -32,9 +32,10 @@ static void threadTestWork(void* argument) {
     printf("Test task %i done\n\n\n", *number);
     free(argument);
 }
-
+*/
 int main(int argc,char *argv[])
 {
+    /*
     threadpool_t* threadPool = threadpool_create(10, 3);
 
     sleep(1);
@@ -49,8 +50,8 @@ int main(int argc,char *argv[])
     sleep(15);
     threadpool_destroy(threadPool);
     return 0;
+    */
 
-    /*
     int flag, num_seats = 20;
     int connfd = 0;
     struct sockaddr_in serv_addr;
@@ -87,14 +88,17 @@ int main(int argc,char *argv[])
     // initialize the threadpool
     // Set the number of threads and size of the queue
     // threadpool = threadpool_create(0,0);
-
+/*
     //create an array of threads
     pthread_t threads[NUM_THREADS];
     int rc; //the particular thread
     int t=0; //index in the threads
     // Load the seats;
-    load_seats(num_seats); //TODO read from argv
 
+*/
+    threadpool = threadpool_create(5, 100);
+
+    load_seats(num_seats); //TODO read from argv
     // set server address
     memset(&serv_addr, '0', sizeof(serv_addr));
     memset(send_buffer, '0', sizeof(send_buffer));
@@ -115,15 +119,23 @@ int main(int argc,char *argv[])
     // handle connections loop (forever)
     while(1)
     {
-        connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
-        rc = pthread_create(&threads[t], NULL, handle_connection, (void *) &connfd);
+        printf("Accepting connection\n");
+        int* connectionFileDescriptor = (int*)malloc(sizeof(int));
+        *connectionFileDescriptor = accept(listenfd, (struct sockaddr*)NULL, NULL);
+        printf("Connection accepted\n");
+
+
+        threadpool_add_task(threadpool, &handle_connection, connectionFileDescriptor);
+        printf("Task added\n");
+        //handle_connection(&connfd);
+        /*rc = pthread_create(&threads[t], NULL, handle_connection, (void *) &connfd);
         if (rc){
          printf("ERROR; return code from pthread_create() is %d\n", rc);
          exit(-1);
         }
         t++;
+        */
     }
-    pthread_exit(NULL);
 }
 
 void shutdown_server(int signo){

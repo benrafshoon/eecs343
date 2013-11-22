@@ -13,7 +13,6 @@
 
 
 #include "seats.h"
-#include "pthread.h"
 
 #define BUFSIZE 1024
 
@@ -23,10 +22,10 @@ int get_line(int, char*,int);
 
 int parse_int_arg(char* filename, char* arg);
 
-void *handle_connection(int* connfd_ptr)
+void handle_connection(int* connfd_ptr)
 {
+    printf("handling connection file descriptor %i\n", *connfd_ptr);
     int connfd = *(connfd_ptr);
-
     int fd;
     char buf[BUFSIZE+1];
     char instr[20];
@@ -61,7 +60,7 @@ void *handle_connection(int* connfd_ptr)
     //Expection Format: 'GET filenane.txt HTTP/1.X'
 
     get_line(connfd, buf, BUFSIZE);
-
+    printf("Frst line: %s\n", buf);
     //parse out instruction
     while( !isspace(buf[j]) && (i < sizeof(instr) - 1))
     {
@@ -127,6 +126,8 @@ void *handle_connection(int* connfd_ptr)
     int user_id = parse_int_arg(file, "user=");
     int customer_priority = parse_int_arg(file, "priority=");
 
+    printf("Requested resource: %s\n", resource);
+
     // Check if the request is for one of our operations
     if (strncmp(resource, "list_seats", length) == 0)
     {
@@ -180,8 +181,8 @@ void *handle_connection(int* connfd_ptr)
             close(fd);
         }
     }
+    printf("Closing file descriptor %i\n", connfd);
     close(connfd);
-    pthread_exit(NULL);
 }
 
 int get_line(int fd, char *buf, int size)
@@ -228,8 +229,10 @@ int readnbytes(int fd,char *buf,int size)
 {
     int rc = 0;
     int totalread = 0;
-    while ((rc = read(fd,buf+totalread,size-totalread)) > 0)
+    while ((rc = read(fd,buf+totalread,size-totalread)) > 0) {
         totalread += rc;
+    }
+
 
     if (rc < 0)
     {

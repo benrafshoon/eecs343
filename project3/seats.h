@@ -1,10 +1,13 @@
+#include <pthread.h>
+#include <semaphore.h>
+
 #ifndef _SEAT_OPERATIONS_H_
 #define _SEAT_OPERATIONS_H_
 
-typedef enum 
+typedef enum
 {
-    AVAILABLE, 
-    PENDING, 
+    AVAILABLE,
+    PENDING,
     OCCUPIED
 } seat_state_t;
 
@@ -13,6 +16,11 @@ typedef struct seat_struct
     int id;
     int customer_id;
     seat_state_t state;
+
+    pthread_mutex_t num_readers_lock;
+    int num_readers;
+    sem_t writer_lock;
+
     struct seat_struct* next;
 } seat_t;
 
