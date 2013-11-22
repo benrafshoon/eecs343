@@ -150,22 +150,22 @@ void* FindFit(MainBufList* list, int size){
 void*
 kma_malloc(kma_size_t size)
 {
-  if(firstPageT == NULL){ //if we have no page to begin with, get one and initialize it
-    firstPageT = get_page();
-    InitializeFirstPage(firstPageT);
-  }
+    if(firstPageT == NULL){ //if we have no page to begin with, get one and initialize it
+        firstPageT = get_page();
+        InitializeFirstPage(firstPageT);
+    }
 
-  FreeBufList* req_ptr = NULL;
-  void* res_ptr = NULL;
+    FreeBufList* req_ptr = NULL;
+    void* res_ptr = NULL;
 
-  MainBufList* list = (MainBufList*)firstPageT->ptr; //get main buffer list
-  int adj_size = size + sizeof(Buffer); //account for size of buffer in request
-  req_ptr = FindFit(list, adj_size); //find the right buffer list for the request
+    MainBufList* list = (MainBufList*)firstPageT->ptr; //get main buffer list
+    int adj_size = size + sizeof(Buffer); //account for size of buffer in request
+    req_ptr = FindFit(list, adj_size); //find the right buffer list for the request
 
-  if (req_ptr != NULL) //if we find the right-sized buffer, go get it
-    res_ptr = GetBuffer(req_ptr);
-
-  return res_ptr; //return pointer to newly alloc'd space
+    if (req_ptr != NULL) {//if we find the right-sized buffer, go get it
+        res_ptr = GetBuffer(req_ptr);
+    }
+    return res_ptr; //return pointer to newly alloc'd space
 }
 
 
@@ -296,7 +296,6 @@ void FreeMainList()
      }
      free_page(page->page); //frees the very last page and sets very first page ptr to NULL--everything clean and free
      firstPageT = NULL;
-
    }
 
 }
