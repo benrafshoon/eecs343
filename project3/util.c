@@ -11,10 +11,13 @@
 #include <stdbool.h>
 #include <errno.h>
 
+#include <time.h>
 
 #include "seats.h"
+#include "file_cache.h"
 
 #define BUFSIZE 1024
+
 
 int writenbytes(int,char *,int);
 int readnbytes(int,char *,int);
@@ -24,6 +27,13 @@ int parse_int_arg(char* filename, char* arg);
 
 void handle_connection(int connfd)
 {
+    long initialTime;
+    long finalTime;
+    struct timespec time;
+
+    clock_gettime(CLOCK_REALTIME, &time);
+    initialTime = time.tv_nsec;
+
     int fd;
     char buf[BUFSIZE+1];
     char instr[20];
@@ -58,6 +68,7 @@ void handle_connection(int connfd)
     //Expection Format: 'GET filenane.txt HTTP/1.X'
 
     get_line(connfd, buf, BUFSIZE);
+    //printf("line:%s\n", buf);
     //parse out instruction
     while( !isspace(buf[j]) && (i < sizeof(instr) - 1))
     {
@@ -165,19 +176,33 @@ void handle_connection(int connfd)
         }
         else
         {
-            // send headers
-            writenbytes(connfd, ok_response, strlen(ok_response));
-            // send file
-            int ret;
-            while ( (ret = read(fd, buf, BUFSIZE)) > 0) {
-                writenbytes(connfd, buf, ret);
+            FileCache* cacheEntry = GetCacheEntry(resource);
+
+            if(cacheEntry != NULL) {
+                writenbytes(connfd, ok_response, strlen(ok_response));
+                writenbytes(connfd, cacheEntry->buffer, cacheEntry->size);
+            } else {
+
+                // send headers
+                writenbytes(connfd, ok_response, strlen(ok_response));
+                // send file
+                int ret;
+                while ( (ret = read(fd, buf, BUFSIZE)) > 0) {
+                    writenbytes(connfd, buf, ret);
+                }
             }
+
+
             // close file and free space
             close(fd);
         }
     }
 
     close(connfd);
+
+    clock_gettime(CLOCK_REALTIME, &time);
+    finalTime = time.tv_nsec;
+    //printf("Request %s time %li us\n", file, (finalTime - initialTime)/100);
 }
 
 int get_line(int fd, char *buf, int size)
