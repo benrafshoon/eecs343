@@ -21,7 +21,7 @@ typedef struct seat_struct
     int num_readers;
     sem_t writer_lock;
 
-    struct seat_struct* next;
+    //struct seat_struct* next;
 } seat_t;
 
 

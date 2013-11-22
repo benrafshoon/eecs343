@@ -16,8 +16,8 @@
  */
 
 typedef struct {
-    void (*function)(void *);
-    void *argument;
+    void (*function)(int);
+    int argument;
 } threadpool_task_t;
 
 
@@ -35,19 +35,14 @@ struct threadpool_t {
   int task_queue_tail;
 };
 
-typedef struct {
-    threadpool_t* threadPool;
-    int threadNumber;
-} ThreadArgument;
-
 /**
- * @function void *threadpool_work(void *threadpool)
+ * @function void *threadpool_work(void *threadPoolArg)
  * @brief the worker thread
- * @param threadpool the pool which own the thread
+ * @param threadPoolArg the pool which own the thread
  */
-static void* thread_do_work(void *threadpool);
+static void* thread_do_work(void *threadPoolArg);
 static inline int IsTaskQueueEmpty(threadpool_t* threadPool);
-static int AddToTailOfQueue(threadpool_t* threadPool, void (* function)(void*), void* argument);
+static int AddToTailOfQueue(threadpool_t* threadPool, void (* function)(int), int argument);
 static void RemoveFromHeadOfQueue(threadpool_t* threadPool, threadpool_task_t* destination);
 
 
@@ -56,7 +51,7 @@ static inline int IsTaskQueueEmpty(threadpool_t* threadPool) {
     return threadPool->task_queue_head == -1;
 }
 
-static int AddToTailOfQueue(threadpool_t* threadPool, void (* function)(void*), void* argument) {
+static int AddToTailOfQueue(threadpool_t* threadPool, void (* function)(int), int argument) {
     int added = 0;
     //printf("Add to tail\n");
 
@@ -131,10 +126,7 @@ threadpool_t *threadpool_create(int thread_count, int queue_size) {
     for(threadNumber = 0; threadNumber < thread_count; threadNumber++) {
         pthread_attr_t threadAttributes;
         pthread_attr_init(&threadAttributes);
-        ThreadArgument* arg = (ThreadArgument*)malloc(sizeof(ThreadArgument));
-        arg->threadPool = threadPool;
-        arg->threadNumber = threadNumber;
-        pthread_create(&threadPool->threads[threadNumber], &threadAttributes, &thread_do_work, (void*)arg);
+        pthread_create(&threadPool->threads[threadNumber], &threadAttributes, &thread_do_work, (void*)threadPool);
         //printf("Created thread %i \n", threadNumber);
     }
 
@@ -147,7 +139,7 @@ threadpool_t *threadpool_create(int thread_count, int queue_size) {
  * Add a task to the threadpool
  *
  */
-int threadpool_add_task(threadpool_t *threadPool, void (* function)(void *), void *argument)
+int threadpool_add_task(threadpool_t *threadPool, void (* function)(int), int argument)
 {
     int err = 0;
 
@@ -191,25 +183,25 @@ int threadpool_destroy(threadpool_t *threadPool)
         pthread_cancel(threadPool->threads[threadNumber]);
 
     }*/
-    printf("\n\n\nShutting down threads\n");
+    //printf("\n\n\nShutting down threads\n");
     threadPool->exit = 1;
 
     pthread_cond_broadcast(&threadPool->new_work);
 
     for(threadNumber = 0; threadNumber < threadPool->thread_count; threadNumber++) {
-        printf("About to wait on thread %i to cancel, testing lock\n", threadNumber);
+        //printf("About to wait on thread %i to cancel, testing lock\n", threadNumber);
         pthread_mutex_lock(&threadPool->lock);
-        printf("Unlocked\n");
+        //printf("Unlocked\n");
         pthread_mutex_unlock(&threadPool->lock);
-        printf("Waiting on thread %i to cancel\n", threadNumber);
+        //printf("Waiting on thread %i to cancel\n", threadNumber);
         void* retval;
         pthread_join(threadPool->threads[threadNumber], &retval);
-        printf("Thread %i canceled\n", threadNumber);
+        //printf("Thread %i canceled\n", threadNumber);
     }
 
     /* Join all worker thread */
 
-    printf("Freeing resources\n");
+    //printf("Freeing resources\n");
     pthread_mutex_destroy(&threadPool->lock);
     pthread_cond_destroy(&threadPool->new_work);
     pthread_cond_destroy(&threadPool->not_full);
@@ -228,12 +220,10 @@ int threadpool_destroy(threadpool_t *threadPool)
  * Work loop for threads. Should be passed into the pthread_create() method.
  *
  */
-static void *thread_do_work(void *arg)
+static void *thread_do_work(void *threadPoolArg)
 {
-    ThreadArgument* threadArgument = (ThreadArgument*)arg;
-    threadpool_t* threadPool = threadArgument->threadPool;
-    int threadNumber = threadArgument->threadNumber;
-    free(arg);
+    threadpool_t* threadPool = (threadpool_t*)threadPoolArg;
+    //int threadNumber = threadArgument->threadNumber;
     threadpool_task_t currentTask;
 
     //printf("Thread %i started\n", threadNumber);
@@ -244,7 +234,7 @@ static void *thread_do_work(void *arg)
         pthread_mutex_lock(&threadPool->lock);
         while(IsTaskQueueEmpty(threadPool)) {
             if(threadPool->exit) {
-                printf("Thread %i exiting\n", threadNumber);
+                //printf("Thread %i exiting\n", threadNumber);
                 pthread_mutex_unlock(&threadPool->lock);
                 pthread_exit(NULL);
             } else {

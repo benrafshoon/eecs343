@@ -4,7 +4,8 @@
 
 #include "seats.h"
 
-seat_t* seat_header = NULL;
+seat_t* seat_list = NULL;
+int number_of_seats;
 
 char seat_state_to_char(seat_state_t);
 
@@ -15,11 +16,9 @@ static void EndWrite(seat_t* seat);
 
 void list_seats(char* buf, int bufsize)
 {
-    printf("List seats\n");
-    seat_t* curr = seat_header;
+    seat_t* curr;
     int index = 0;
-    while(curr != NULL && index < bufsize+ strlen("%d %c,"))
-    {
+    for(curr = seat_list; curr < seat_list + number_of_seats && index < bufsize + strlen("%d %c,"); curr++) {
         //CRITIAL SECTION
         StartRead(curr);
         int length = snprintf(buf+index, bufsize-index,
@@ -28,8 +27,8 @@ void list_seats(char* buf, int bufsize)
         //END CRITICAL SECTION
         if (length > 0)
             index = index + length;
-        curr = curr->next;
     }
+
     if (index > 0)
         snprintf(buf+index-1, bufsize-index-1, "\n");
     else
@@ -38,152 +37,136 @@ void list_seats(char* buf, int bufsize)
 
 void view_seat(char* buf, int bufsize,  int seat_id, int customer_id, int customer_priority)
 {
-    printf("View seat\n");
-    seat_t* curr = seat_header;
-    while(curr != NULL)
-    {
-        if(curr->id == seat_id)
+    if(seat_id < number_of_seats) {
+        seat_t* curr = &seat_list[seat_id];
+        //CRITICAL SECTION
+        StartWrite(curr);
+        if(curr->state == AVAILABLE || (curr->state == PENDING && curr->customer_id == customer_id))
+
         {
-            //CRITICAL SECTION
-            StartWrite(curr);
-            if(curr->state == AVAILABLE || (curr->state == PENDING && curr->customer_id == customer_id))
-
-            {
-                snprintf(buf, bufsize, "Confirm seat: %d %c ?\n\n",
-                        curr->id, seat_state_to_char(curr->state));
-                curr->state = PENDING;
-                curr->customer_id = customer_id;
-            }
-            else
-            {
-                snprintf(buf, bufsize, "Seat unavailable\n\n");
-            }
-            EndWrite(curr);
-            //END CRITICAL SECTION
-
-            return;
+            snprintf(buf, bufsize, "Confirm seat: %d %c ?\n\n",
+                    curr->id, seat_state_to_char(curr->state));
+            curr->state = PENDING;
+            curr->customer_id = customer_id;
         }
-        curr = curr->next;
+        else
+        {
+            snprintf(buf, bufsize, "Seat unavailable\n\n");
+        }
+        EndWrite(curr);
+        //END CRITICAL SECTION
+
+        return;
+    } else {
+        snprintf(buf, bufsize, "Requested seat not found\n\n");
+        return;
     }
-    snprintf(buf, bufsize, "Requested seat not found\n\n");
-    return;
+
+
+
 }
 
 void confirm_seat(char* buf, int bufsize, int seat_id, int customer_id, int customer_priority)
 {
-    printf("Confirm seat\n");
-    seat_t* curr = seat_header;
-    while(curr != NULL)
-    {
-        if(curr->id == seat_id)
-        {
-            //CRITICAL SECTION
-            StartWrite(curr);
-            if(curr->state == PENDING && curr->customer_id == customer_id )
-            {
-                snprintf(buf, bufsize, "Seat confirmed: %d %c\n\n",
-                        curr->id, seat_state_to_char(curr->state));
-                curr->state = OCCUPIED;
-            }
-            else if(curr->customer_id != customer_id )
-            {
-                snprintf(buf, bufsize, "Permission denied - seat held by another user\n\n");
-            }
-            else if(curr->state != PENDING)
-            {
-                snprintf(buf, bufsize, "No pending request\n\n");
-            }
-            EndWrite(curr);
-            //END CRITICAL SECTION
-            return;
-        }
-        curr = curr->next;
-    }
-    snprintf(buf, bufsize, "Requested seat not found\n\n");
 
-    return;
+    if(seat_id < number_of_seats) {
+         seat_t* curr = &seat_list[seat_id];
+        //CRITICAL SECTION
+        StartWrite(curr);
+        if(curr->state == PENDING && curr->customer_id == customer_id )
+        {
+            snprintf(buf, bufsize, "Seat confirmed: %d %c\n\n",
+                    curr->id, seat_state_to_char(curr->state));
+            curr->state = OCCUPIED;
+        }
+        else if(curr->customer_id != customer_id )
+        {
+            snprintf(buf, bufsize, "Permission denied - seat held by another user\n\n");
+        }
+        else if(curr->state != PENDING)
+        {
+            snprintf(buf, bufsize, "No pending request\n\n");
+        }
+        EndWrite(curr);
+        //END CRITICAL SECTION
+        return;
+    } else {
+        snprintf(buf, bufsize, "Requested seat not found\n\n");
+        return;
+
+    }
+
 }
 
 void cancel(char* buf, int bufsize, int seat_id, int customer_id, int customer_priority)
 {
-    printf("Cancelling seat %d for user %d\n", seat_id, customer_id);
-
-    seat_t* curr = seat_header;
-    while(curr != NULL)
-    {
-        if(curr->id == seat_id)
+    if(seat_id < number_of_seats) {
+        seat_t* curr = &seat_list[seat_id];
+        //CRITICAL SECTION
+        StartWrite(curr);
+        if(curr->state == PENDING && curr->customer_id == customer_id )
         {
-            //CRITICAL SECTION
-            StartWrite(curr);
-            if(curr->state == PENDING && curr->customer_id == customer_id )
-            {
-                snprintf(buf, bufsize, "Seat request cancelled: %d %c\n\n",
-                        curr->id, seat_state_to_char(curr->state));
-                curr->state = AVAILABLE;
-            }
-            else if(curr->customer_id != customer_id )
-            {
-                snprintf(buf, bufsize, "Permission denied - seat held by another user\n\n");
-            }
-            else if(curr->state != PENDING)
-            {
-                snprintf(buf, bufsize, "No pending request\n\n");
-            }
-            EndWrite(curr);
-            //END CRITICAL SECTION
-
-            return;
+            snprintf(buf, bufsize, "Seat request cancelled: %d %c\n\n",
+                    curr->id, seat_state_to_char(curr->state));
+            curr->state = AVAILABLE;
         }
-        curr = curr->next;
-    }
-    snprintf(buf, bufsize, "Seat not found\n\n");
+        else if(curr->customer_id != customer_id )
+        {
+            snprintf(buf, bufsize, "Permission denied - seat held by another user\n\n");
+        }
+        else if(curr->state != PENDING)
+        {
+            snprintf(buf, bufsize, "No pending request\n\n");
+        }
+        EndWrite(curr);
+        //END CRITICAL SECTION
 
-    return;
+        return;
+
+    } else {
+        snprintf(buf, bufsize, "Seat not found\n\n");
+        return;
+    }
+
+
+
+
+
 }
 
-void load_seats(int number_of_seats)
+void load_seats(int number_of_seats_to_load)
 {
-    seat_t* curr = NULL;
+    number_of_seats = number_of_seats_to_load;
+
+    seat_list = malloc(sizeof(seat_t) * number_of_seats);
+
     int i;
     for(i = 0; i < number_of_seats; i++)
     {
-        seat_t* temp = (seat_t*) malloc(sizeof(seat_t));
-        temp->id = i;
-        temp->customer_id = -1;
-        temp->state = AVAILABLE;
-        temp->next = NULL;
+        seat_t* current_seat = &seat_list[i];
+        current_seat->id = i;
+        current_seat->customer_id = -1;
+        current_seat->state = AVAILABLE;
 
         pthread_mutexattr_t mutexAttributes;
         pthread_mutexattr_init(&mutexAttributes);
-        pthread_mutex_init(&temp->num_readers_lock, &mutexAttributes);
+        pthread_mutex_init(&current_seat->num_readers_lock, &mutexAttributes);
 
-        temp->num_readers = 0;
+        current_seat->num_readers = 0;
 
-        sem_init(&temp->writer_lock, 0, 1);
-
-
-
-        if (seat_header == NULL)
-        {
-            seat_header = temp;
-        }
-        else
-        {
-            curr-> next = temp;
-        }
-        curr = temp;
+        sem_init(&current_seat->writer_lock, 0, 1);
     }
 }
 
 void unload_seats()
 {
-    seat_t* curr = seat_header;
-    while(curr != NULL)
-    {
-        seat_t* temp = curr;
-        curr = curr->next;
-        free(temp);
+    int i;
+    for(i = 0; i < number_of_seats; i++) {
+        seat_t* current_seat = &seat_list[i];
+        pthread_mutex_destroy(&current_seat->num_readers_lock);
+        sem_destroy(&current_seat->writer_lock);
     }
+    free(seat_list);
 }
 
 char seat_state_to_char(seat_state_t state)

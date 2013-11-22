@@ -18,7 +18,9 @@
 
 #define BUFSIZE 1024
 #define FILENAMESIZE 100
-#define NUM_THREADS 50
+
+#define NUM_THREADS 2
+#define QUEUE_SIZE 4000
 
 void shutdown_server(int);
 
@@ -96,7 +98,7 @@ int main(int argc,char *argv[])
     // Load the seats;
 
 */
-    threadpool = threadpool_create(5, 100);
+    threadpool = threadpool_create(NUM_THREADS, QUEUE_SIZE);
 
     load_seats(num_seats); //TODO read from argv
     // set server address
@@ -119,14 +121,14 @@ int main(int argc,char *argv[])
     // handle connections loop (forever)
     while(1)
     {
-        printf("Accepting connection\n");
-        int* connectionFileDescriptor = (int*)malloc(sizeof(int));
-        *connectionFileDescriptor = accept(listenfd, (struct sockaddr*)NULL, NULL);
-        printf("Connection accepted\n");
+        //printf("Accepting connection\n");
+        //int* connectionFileDescriptor = (int*)malloc(sizeof(int));
+        connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
+        //printf("Connection accepted\n");
 
 
-        threadpool_add_task(threadpool, &handle_connection, connectionFileDescriptor);
-        printf("Task added\n");
+        threadpool_add_task(threadpool, &handle_connection, connfd);
+        //printf("Task added\n");
         //handle_connection(&connfd);
         /*rc = pthread_create(&threads[t], NULL, handle_connection, (void *) &connfd);
         if (rc){
