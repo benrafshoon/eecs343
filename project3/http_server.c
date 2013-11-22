@@ -24,6 +24,7 @@ void shutdown_server(int);
 
 int listenfd;
 threadpool_t* threadpool;
+pthread_mutex_t seat_locks[20];
 
 /*static void threadTestWork(void* argument) {
     int* number = (int*)argument;
@@ -100,6 +101,7 @@ int main(int argc,char *argv[])
 
 void shutdown_server(int signo){
     threadpool_destroy(threadpool);
+    seat_locks_destroy(seat_locks);
     unload_seats();
     close(listenfd);
     exit(0);
