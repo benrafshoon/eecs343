@@ -1,0 +1,41 @@
+MULTITHREADED SERVER
+
+NAME
+	AquaJet multithreaded reservation system
+
+SYNOPSIS
+	http_server
+	seats
+	thread_pool
+	util
+	file_cache
+
+DESCRIPTION
+	AquaJet's initial reservation system was designed to process one thread at a time, making it very difficult
+	for customers to make reservations while other customers were making their own reservation requests.  The new
+	system uses multiple threads from a fixed-size thread pool, managed via a worker queue.  For speed the static
+	.html and .png files were loaded into a cache.
+
+DESIGN
+	http_server
+		The reservation site server is created here (provided in skeleton).  The threadpool is also created
+		and initialized here.  When a connection to the server is accepted, a task is added to the threadpool.
+
+	seats
+		seats.c handles the actual selection, confirmation and release of seats.  The list of seats is allocated
+		space and initialized prior to customer viewing and selection.  The functions view_seat()
+		and confirm_seat() make sure that the appropriate customer is initiating the seat selection, so that
+		a different customer does not reserve a seat out from under the first customer.  StartRead(), EndRead(),
+		StartWrite() and EndWrite() handle the critical section(s) of list_seats(), view_seat() and confirm_seat().
+		StartRead() and EndRead() lock the seat and examine the number of 'readers' for that seat.  StartRead()
+		uses a semaphore to wait until a writer is finished with the seat, while EndRead() uses a semaphore to
+		signal the writer to begin writing.  StartWrite() and EndWrite() also use a semaphore to wait for the
+		write process to begin and to signal the end of the write.
+
+	thread_pool
+		The creation and management of the thread pool and working queue can be found in thread_pool.c.  Space
+		is allocated for the pool itself, the threads within it and the queue.  The pool uses a lock to safeguard
+		additions and deletions of tasks and two thread conditions (new_work and not_full) to indicate thread status.
+		In the pool threads wait for a task to come to the head of the queue.  When a thread 'takes' a task, it
+		signals that the queue can accept another task at the end of the line.  Upon shutting down the server,
+		all threads are woken up, 
