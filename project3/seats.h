@@ -13,15 +13,12 @@ typedef enum
 
 typedef struct seat_struct
 {
-    int id;
     int customer_id;
     seat_state_t state;
 
     pthread_mutex_t num_readers_lock;
     int num_readers;
     sem_t writer_lock;
-
-    //struct seat_struct* next;
 } seat_t;
 
 

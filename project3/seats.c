@@ -4,13 +4,25 @@
 
 #include "seats.h"
 
+//The seat list is a fixed size array
 seat_t* seat_list = NULL;
 int number_of_seats;
 
 char seat_state_to_char(seat_state_t);
 
+
+//The customer_id and state of each seat are synchronized using a solution to the readers-writer problem
+//Multiple people can read, only one can write
+//Writer must wait until there are no readers before writinh
+//The position in the array is the seat_id.  The structure of the array is fixed, so it doesn't need any sort of synchronization
+
+//Readers call StartRead and EndRead to indicate the beginning and end, repectively, of a section of code
+//that reads the state or customer_id of a seat
 static void StartRead(seat_t* seat);
 static void EndRead(seat_t* seat);
+
+// Writers call StartWrite and EndWrite to indicate the beginning and end, respectively, or a section of code
+//that writes to the state or customer_id of a seat
 static void StartWrite(seat_t* seat);
 static void EndWrite(seat_t* seat);
 
@@ -18,15 +30,17 @@ void list_seats(char* buf, int bufsize)
 {
     seat_t* curr;
     int index = 0;
+    int seat_id = 0;
     for(curr = seat_list; curr < seat_list + number_of_seats && index < bufsize + strlen("%d %c,"); curr++) {
-        //CRITIAL SECTION
+        //Mark that we are reading when we get the seat state
         StartRead(curr);
         int length = snprintf(buf+index, bufsize-index,
-                "%d %c,", curr->id, seat_state_to_char(curr->state));
+                "%d %c,", seat_id, seat_state_to_char(curr->state));
         EndRead(curr);
-        //END CRITICAL SECTION
+
         if (length > 0)
             index = index + length;
+        seat_id++;
     }
 
     if (index > 0)
@@ -39,13 +53,13 @@ void view_seat(char* buf, int bufsize,  int seat_id, int customer_id, int custom
 {
     if(seat_id < number_of_seats) {
         seat_t* curr = &seat_list[seat_id];
-        //CRITICAL SECTION
+        //Mark that we are writing since we will update the seat state and customer id
         StartWrite(curr);
         if(curr->state == AVAILABLE || (curr->state == PENDING && curr->customer_id == customer_id))
 
         {
             snprintf(buf, bufsize, "Confirm seat: %d %c ?\n\n",
-                    curr->id, seat_state_to_char(curr->state));
+                    seat_id, seat_state_to_char(curr->state));
             curr->state = PENDING;
             curr->customer_id = customer_id;
         }
@@ -54,7 +68,6 @@ void view_seat(char* buf, int bufsize,  int seat_id, int customer_id, int custom
             snprintf(buf, bufsize, "Seat unavailable\n\n");
         }
         EndWrite(curr);
-        //END CRITICAL SECTION
 
         return;
     } else {
@@ -70,13 +83,14 @@ void confirm_seat(char* buf, int bufsize, int seat_id, int customer_id, int cust
 {
 
     if(seat_id < number_of_seats) {
-         seat_t* curr = &seat_list[seat_id];
-        //CRITICAL SECTION
+        seat_t* curr = &seat_list[seat_id];
+
+        //Mark that we are writing because we will change the seat state
         StartWrite(curr);
         if(curr->state == PENDING && curr->customer_id == customer_id )
         {
             snprintf(buf, bufsize, "Seat confirmed: %d %c\n\n",
-                    curr->id, seat_state_to_char(curr->state));
+                    seat_id, seat_state_to_char(curr->state));
             curr->state = OCCUPIED;
         }
         else if(curr->customer_id != customer_id )
@@ -88,7 +102,7 @@ void confirm_seat(char* buf, int bufsize, int seat_id, int customer_id, int cust
             snprintf(buf, bufsize, "No pending request\n\n");
         }
         EndWrite(curr);
-        //END CRITICAL SECTION
+
         return;
     } else {
         snprintf(buf, bufsize, "Requested seat not found\n\n");
@@ -102,12 +116,12 @@ void cancel(char* buf, int bufsize, int seat_id, int customer_id, int customer_p
 {
     if(seat_id < number_of_seats) {
         seat_t* curr = &seat_list[seat_id];
-        //CRITICAL SECTION
+        //Mark that we are writing since we are changing the seat state
         StartWrite(curr);
         if(curr->state == PENDING && curr->customer_id == customer_id )
         {
             snprintf(buf, bufsize, "Seat request cancelled: %d %c\n\n",
-                    curr->id, seat_state_to_char(curr->state));
+                    seat_id, seat_state_to_char(curr->state));
             curr->state = AVAILABLE;
         }
         else if(curr->customer_id != customer_id )
@@ -119,7 +133,6 @@ void cancel(char* buf, int bufsize, int seat_id, int customer_id, int customer_p
             snprintf(buf, bufsize, "No pending request\n\n");
         }
         EndWrite(curr);
-        //END CRITICAL SECTION
 
         return;
 
@@ -127,13 +140,9 @@ void cancel(char* buf, int bufsize, int seat_id, int customer_id, int customer_p
         snprintf(buf, bufsize, "Seat not found\n\n");
         return;
     }
-
-
-
-
-
 }
 
+//Initialize the array of seats
 void load_seats(int number_of_seats_to_load)
 {
     number_of_seats = number_of_seats_to_load;
@@ -144,10 +153,10 @@ void load_seats(int number_of_seats_to_load)
     for(i = 0; i < number_of_seats; i++)
     {
         seat_t* current_seat = &seat_list[i];
-        current_seat->id = i;
         current_seat->customer_id = -1;
         current_seat->state = AVAILABLE;
 
+        //Initialize the write semaphore to 1, the mutex lock, and the number of readers to 0
         pthread_mutexattr_t mutexAttributes;
         pthread_mutexattr_init(&mutexAttributes);
         pthread_mutex_init(&current_seat->num_readers_lock, &mutexAttributes);
@@ -185,41 +194,30 @@ char seat_state_to_char(seat_state_t state)
 }
 
 static void StartRead(seat_t* seat) {
-    //printf("Requesting read lock on seat %i\n", seat->id);
     pthread_mutex_lock(&seat->num_readers_lock);
     seat->num_readers++;
-    //printf("Now %i readers on seat %i\n", seat->num_readers, seat->id);
     if(seat->num_readers == 1) {
-        //printf("Waiting for writer to finish on seat %i\n", seat->id);
-        //If we are the only reader, wait until the writer is done
+        //If we are the first reader, wait until the writer is done and prevent more writing
         sem_wait(&seat->writer_lock);
     }
     pthread_mutex_unlock(&seat->num_readers_lock);
-    //printf("Reading on seat %i\n", seat->id);
 }
 
 static void EndRead(seat_t* seat) {
-    //printf("Ending read on seat %i\n", seat->id);
     pthread_mutex_lock(&seat->num_readers_lock);
     seat->num_readers--;
-    //printf("Now %i readers on seat %i\n", seat->num_readers, seat->id);
     if(seat->num_readers == 0) {
         //If we finished the last read, signal the writer to begin writing
-        //printf("Signaling writer to write on seat %i\n", seat->id);
         sem_post(&seat->writer_lock);
     }
     pthread_mutex_unlock(&seat->num_readers_lock);
-    //printf("Done reading on seat %i\n", seat->id);
 }
 
 static void StartWrite(seat_t* seat) {
-    //printf("Requesting write on seat %i\n", seat->id);
+    //Wait for all readers to finish reading and the current writer to finish writing
     sem_wait(&seat->writer_lock);
-    //printf("Writing on seat %i\n", seat->id);
 }
 
 static void EndWrite(seat_t* seat) {
-    //printf("Finishing write on seat %i\n", seat->id);
     sem_post(&seat->writer_lock);
-    //printf("Write finished on seat %i\n", seat->id);
 }

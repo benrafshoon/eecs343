@@ -88,21 +88,13 @@ int main(int argc,char *argv[])
     flag = 1;
     setsockopt( listenfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag) );
 
-    // initialize the threadpool
-    // Set the number of threads and size of the queue
-    // threadpool = threadpool_create(0,0);
-/*
-    //create an array of threads
-    pthread_t threads[NUM_THREADS];
-    int rc; //the particular thread
-    int t=0; //index in the threads
-    // Load the seats;
-
-*/
+    //Preload the static files to the file cache
     InitializeFileCache();
     PreloadCache("reserveSeat.html");
     PreloadCache("selectSeats.html");
     PreloadCache("aquajet_full.png");
+
+    //Initialize the thread pool
     threadpool = threadpool_create(NUM_THREADS, QUEUE_SIZE);
 
     load_seats(num_seats); //TODO read from argv
@@ -126,22 +118,8 @@ int main(int argc,char *argv[])
     // handle connections loop (forever)
     while(1)
     {
-        //printf("Accepting connection\n");
-        //int* connectionFileDescriptor = (int*)malloc(sizeof(int));
         connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
-        //printf("Connection accepted\n");
-
-
         threadpool_add_task(threadpool, &handle_connection, connfd);
-        //printf("Task added\n");
-        //handle_connection(&connfd);
-        /*rc = pthread_create(&threads[t], NULL, handle_connection, (void *) &connfd);
-        if (rc){
-         printf("ERROR; return code from pthread_create() is %d\n", rc);
-         exit(-1);
-        }
-        t++;
-        */
     }
 }
 

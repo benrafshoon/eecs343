@@ -27,12 +27,12 @@ int parse_int_arg(char* filename, char* arg);
 
 void handle_connection(int connfd)
 {
-    long initialTime;
+    /*long initialTime;
     long finalTime;
     struct timespec time;
 
     clock_gettime(CLOCK_REALTIME, &time);
-    initialTime = time.tv_nsec;
+    initialTime = time.tv_nsec;*/
 
     int fd;
     char buf[BUFSIZE+1];
@@ -113,6 +113,7 @@ void handle_connection(int connfd)
         //ignore headers -> (for now)
     }
 
+    //Parse the url string
     char* resource = strtok(file, "?");
     char* arg1Name = strtok(NULL, "=");
     char* arg1Value = strtok(NULL, "&?");
@@ -137,7 +138,6 @@ void handle_connection(int connfd)
             user_id = atoi(arg2Value);
         }
     }
-    //printf("%s seat %i, user %i\n", resource, seat_id, user_id);
 
 
 /*
@@ -157,7 +157,6 @@ void handle_connection(int connfd)
 
     strncpy(resource, file, length);
     resource[length] = 0;
-
 
 */
 
@@ -227,9 +226,9 @@ void handle_connection(int connfd)
 
     close(connfd);
 
-    clock_gettime(CLOCK_REALTIME, &time);
+    /*clock_gettime(CLOCK_REALTIME, &time);
     finalTime = time.tv_nsec;
-    //printf("Request %s time %li us\n", file, (finalTime - initialTime)/100);
+    printf("Request %s time %li us\n", file, (finalTime - initialTime)/100);*/
 }
 
 int get_line(int fd, char *buf, int size)
