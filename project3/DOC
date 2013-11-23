@@ -33,7 +33,7 @@ DESIGN
 		signal the writer to begin writing.  StartWrite() and EndWrite() also use a semaphore to wait for the
 		write process to begin and to signal the end of the write.  This is an implementation of the solution
 		to the first readers-writers problem/readers-preference, as seen here: http://en.wikipedia.org/wiki/
-		Readers-writers_problem/
+		Readers-writers_problem/  This handles the synchronization problem well, and has favorable speed.
 
 	thread_pool
 		The creation and management of the thread pool and working queue can be found in thread_pool.c.  Space
@@ -48,3 +48,12 @@ DESIGN
 		util.c primarily handles the webpage parsing.  Some parsing functions were changed to use library
 		functions from string.h for speed.  This file also handles reading and writing to the files put in 
 		the cache during initialization.  
+
+	file_cache
+		The cache is stored as a fixed array of FileCache structs.  Its allocation, initialization and
+		destruction/freeing of memory are handled here.  The cache is not threadsafe, but it is only
+		written to during initialization, before the creation of the thread pool, so this is permissible.
+
+LOAD TESTING
+	As of 11/22/2013 xx:xx the new AquaJet reservation system had an average response time
+	of 25.5321475053 with 0 failures.
