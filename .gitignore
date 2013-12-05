@@ -1,4 +1,4 @@
-*.o
+project1/*.o
 project1/tsh
 project1/project1.layout
 project2/kma_bud
@@ -10,5 +10,13 @@ project2/kma_p2fl
 project2/kma_rm
 project2/project2.layout
 project2/kma_output.dat
+project3/*.o
 project3/http_server
 project3/project3.layout
+project4/*.o
+project4/project4.layout
+project4/obj/*
+project4/ext2cat
+project4/ext2cat_ref
+project4/*.gch
+project4/*/*.gch
