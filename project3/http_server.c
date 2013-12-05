@@ -27,33 +27,9 @@ void shutdown_server(int);
 
 int listenfd;
 threadpool_t* threadpool;
-/*
-static void threadTestWork(void* argument) {
-    int* number = (int*)argument;
-    printf("\n\nTest task %i\n", *number);
-    sleep(1);
-    printf("Test task %i done\n\n\n", *number);
-    free(argument);
-}
-*/
+
 int main(int argc,char *argv[])
 {
-    /*
-    threadpool_t* threadPool = threadpool_create(10, 3);
-
-    sleep(1);
-
-    int c;
-    for(c = 0; c < 10; c++) {
-        int* number = (int*)malloc(sizeof(int));
-        *number = c;
-        threadpool_add_task(threadPool, &threadTestWork, number);
-    }
-
-    sleep(15);
-    threadpool_destroy(threadPool);
-    return 0;
-    */
 
     int flag, num_seats = 20;
     int connfd = 0;

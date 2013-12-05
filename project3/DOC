@@ -46,14 +46,14 @@ DESIGN
 
 	util
 		util.c primarily handles the webpage parsing.  Some parsing functions were changed to use library
-		functions from string.h for speed.  This file also handles reading and writing to the files put in 
-		the cache during initialization.  
+		functions from string.h for speed.  This file also handles reading and writing to the files put in
+		the cache during initialization.
 
 	file_cache
-		The cache is stored as a fixed array of FileCache structs.  Its allocation, initialization and
-		destruction/freeing of memory are handled here.  The cache is not threadsafe, but it is only
-		written to during initialization, before the creation of the thread pool, so this is permissible.
+		Static pages are cached in memory using file_cache. The cache is stored as a fixed array of FileCache structs.
+		Its allocation, initialization and destruction/freeing of memory are handled here.  The cache is not threadsafe,
+		but it is only written to during initialization, before the creation of the thread pool, so this is permissible.
 
 LOAD TESTING
-	As of 11/22/2013 xx:xx the new AquaJet reservation system had an average response time
+	As of 11/22/2013 3:16 the new AquaJet reservation system had an average response time
 	of 25.5321475053 with 0 failures.

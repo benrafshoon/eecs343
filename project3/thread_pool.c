@@ -15,10 +15,18 @@
  *  @var argument Argument to be passed to the function.
  */
 
+/*
+Valgrind gave us similar output to this:
+http://stackoverflow.com/questions/13132890/leaking-memory-with-pthreads
+We believe that the 4 non-free'd allocs are due to the pthread library, not our code,
+similar to what was suggested in the thread.
+*/
+
 typedef struct {
     void (*function)(int);
     int argument;
 } threadpool_task_t;
+
 
 
 //The task queue is implemented as a moving fixed size queue.
@@ -145,6 +153,7 @@ threadpool_t *threadpool_create(int thread_count, int queue_size) {
     pthread_mutexattr_t mutexAttributes;
     pthread_mutexattr_init(&mutexAttributes);
     pthread_mutex_init(&threadPool->lock, &mutexAttributes);
+    pthread_mutexattr_destroy(&mutexAttributes);
 
     //Initialize the empty and full conditions (producer-consumer problem)
     pthread_condattr_t conditionAttributes;
@@ -153,12 +162,16 @@ threadpool_t *threadpool_create(int thread_count, int queue_size) {
 
     pthread_cond_init(&threadPool->not_full, &conditionAttributes);
 
+    pthread_condattr_destroy(&conditionAttributes);
+
     //Start each thread
     int threadNumber;
     for(threadNumber = 0; threadNumber < thread_count; threadNumber++) {
         pthread_attr_t threadAttributes;
         pthread_attr_init(&threadAttributes);
         pthread_create(&threadPool->threads[threadNumber], &threadAttributes, &thread_do_work, (void*)threadPool);
+
+        pthread_attr_destroy(&threadAttributes);
     }
 
     return threadPool;
@@ -178,10 +191,8 @@ int threadpool_add_task(threadpool_t *threadPool, void (* function)(int), int ar
 
     /* Add task to queue */
     while(!AddToTailOfQueue(threadPool, function, argument)) {
-        //printf("Task queue full, waiting for room\n");
         pthread_cond_wait(&threadPool->not_full, &threadPool->lock);
     }
-    //printf("Added to queue\n");
 
     /* pthread_cond_broadcast and unlock */
     pthread_mutex_unlock(&threadPool->lock);
@@ -219,6 +230,7 @@ int threadpool_destroy(threadpool_t *threadPool)
     pthread_mutex_destroy(&threadPool->lock);
     pthread_cond_destroy(&threadPool->new_work);
     pthread_cond_destroy(&threadPool->not_full);
+
     free(threadPool->threads);
     free(threadPool->task_queue);
     free(threadPool);
