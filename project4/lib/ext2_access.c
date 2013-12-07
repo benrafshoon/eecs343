@@ -17,8 +17,7 @@
 
 // Return a pointer to the primary superblock of a filesystem.
 struct ext2_super_block * get_super_block(void * fs) {
-    // FIXME: Uses reference implementation.
-    return _ref_get_super_block(fs);
+    return (struct ext2_super_block*)((size_t)fs + SUPERBLOCK_OFFSET);
 }
 
 
@@ -98,9 +97,9 @@ struct ext2_inode * get_root_dir(void * fs) {
 
 // Given the inode for a directory and a filename, return the inode number of
 // that file inside that directory, or 0 if it doesn't exist there.
-// 
+//
 // name should be a single component: "foo.txt", not "/files/foo.txt".
-__u32 get_inode_from_dir(void * fs, struct ext2_inode * dir, 
+__u32 get_inode_from_dir(void * fs, struct ext2_inode * dir,
         char * name) {
     // FIXME: Uses reference implementation.
     return _ref_get_inode_from_dir(fs, dir, name);
