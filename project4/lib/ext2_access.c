@@ -17,7 +17,8 @@
 
 // Return a pointer to the primary superblock of a filesystem.
 struct ext2_super_block * get_super_block(void * fs) {
-    return (struct ext2_super_block*)((size_t)fs + SUPERBLOCK_OFFSET);
+
+    return (struct ext2_super_block *)((size_t)fs + SUPERBLOCK_OFFSET);
 }
 
 
@@ -30,7 +31,8 @@ __u32 get_block_size(void * fs) {
 // Return a pointer to a block given its number.
 // get_block(fs, 0) == fs;
 void * get_block(void * fs, __u32 block_num) {
-    return (void*)((size_t)fs + get_block_size(fs) * block_num);
+    return (void *)((size_t)fs + get_block_size(fs) * block_num);
+
 }
 
 
@@ -38,8 +40,7 @@ void * get_block(void * fs, __u32 block_num) {
 // ext2 filesystems will have several of these, but, for simplicity, we will
 // assume there is only one.
 struct ext2_group_desc * get_block_group(void * fs, __u32 block_group_num) {
-    // FIXME: Uses reference implementation.
-    return _ref_get_block_group(fs, block_group_num);
+    return (struct ext2_group_desc *)((size_t)fs + SUPERBLOCK_OFFSET + SUPERBLOCK_SIZE);
 }
 
 
