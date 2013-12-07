@@ -69,9 +69,8 @@ char ** split_path(char * path) {
     for (char * slash = path; slash != NULL; slash = strchr(slash + 1, '/')) {
         num_slashes++;
     }
-
     // Copy out each piece by advancing two pointers (piece_start and slash).
-    char ** parts = (char **) calloc(num_slashes, sizeof(char *));
+    char ** parts = (char **) calloc(num_slashes + 1, sizeof(char *)); //Add an extra item so we can null terminate
     char * piece_start = path + 1;
     int i = 0;
     for (char * slash = strchr(path + 1, '/');
@@ -86,9 +85,18 @@ char ** split_path(char * path) {
     // Get the last piece.
     parts[i] = (char *) calloc(strlen(piece_start) + 1, sizeof(char));
     strncpy(parts[i], piece_start, strlen(piece_start));
+    parts[num_slashes] = 0;
     return parts;
 }
 
+void free_split_path(char** split_path) {
+    char** current_path = split_path;
+    while(*current_path != 0) {
+        free(*current_path);
+        current_path++;
+    }
+    free(split_path);
+}
 
 // Convenience function to get the inode of the root directory.
 struct ext2_inode * get_root_dir(void * fs) {
@@ -128,7 +136,25 @@ __u32 get_inode_from_dir(void * fs, struct ext2_inode * dir,
 // Find the inode number for a file by its full path.
 // This is the functionality that ext2cat ultimately needs.
 __u32 get_inode_by_path(void * fs, char * path) {
+    char ** path_components = split_path(path);
+    struct ext2_inode * current_inode = get_root_dir(fs);
+    __u32 current_inode_num = 0;
+
+    char** current_path_component = path_components;
+    while(*current_path_component != 0) {
+        current_inode_num = get_inode_from_dir(fs, current_inode, *current_path_component);
+        if(current_inode_num == 0) {
+            break;
+        }
+        //printf("%s %i\n", path_components[i], current_inode_num);
+        current_inode = get_inode(fs, current_inode_num);
+
+        current_path_component++;
+    }
+
+    free_split_path(path_components);
+    return current_inode_num;
     // FIXME: Uses reference implementation.
-    return _ref_get_inode_by_path(fs, path);
+    //_ref_get_inode_by_path(fs, path);
 }
 
