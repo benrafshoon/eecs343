@@ -47,6 +47,7 @@ int main(int argc, char ** argv) {
                argv[0]);
     }
 
+    free(buf);
     return 0;
 }
 
