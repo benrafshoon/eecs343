@@ -4,7 +4,6 @@
 #include "ext2_access.h"
 #include "mmapfs.h"
 
-
 int main(int argc, char ** argv) {
     // Extract the file given in the second argument from the filesystem image
     // given in the first.
@@ -31,6 +30,7 @@ int main(int argc, char ** argv) {
 
     // Read the file one block at a time. In the real world, there would be a
     // lot of error-handling code here.
+
     __u32 bytes_left;
     for (int i = 0; i < EXT2_NDIR_BLOCKS; i++) {
         bytes_left = size - bytes_read;
@@ -41,11 +41,21 @@ int main(int argc, char ** argv) {
         bytes_read += bytes_to_read;
     }
 
-    write(1, buf, bytes_read);
-    if (bytes_read < size) {
-        printf("%s: file uses indirect blocks. output was truncated!\n",
-               argv[0]);
+    if(bytes_read < size) {
+        __u32 * block = get_block(fs, target_ino->i_block[EXT2_IND_BLOCK]);
+        __u32 * end_of_block = get_block(fs, target_ino->i_block[EXT2_IND_BLOCK] + 1);
+        __u32 * current;
+        for(current = block; current < end_of_block; current++) {
+            bytes_left = size - bytes_read;
+            if (bytes_left == 0) break;
+            __u32 bytes_to_read = bytes_left > block_size ? block_size : bytes_left;
+            void * block = get_block(fs, *current);
+            memcpy(buf + bytes_read, block, bytes_to_read);
+            bytes_read += bytes_to_read;
+        }
     }
+
+    write(1, buf, bytes_read);
 
     free(buf);
     return 0;
