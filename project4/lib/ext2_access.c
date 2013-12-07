@@ -102,8 +102,26 @@ struct ext2_inode * get_root_dir(void * fs) {
 // name should be a single component: "foo.txt", not "/files/foo.txt".
 __u32 get_inode_from_dir(void * fs, struct ext2_inode * dir,
         char * name) {
-    // FIXME: Uses reference implementation.
-    return _ref_get_inode_from_dir(fs, dir, name);
+    //Assumes that the directory list does not span more than one block
+
+    struct ext2_dir_entry_2 * current_entry = (struct ext2_dir_entry_2 *)get_block(fs, dir->i_block[0]);
+    __u32 total_size = dir->i_size;
+    __u32 current_read = 0;
+    char name_buffer[257];
+    __u32 found_inode = 0;
+    while(current_read < total_size) {
+        memcpy(name_buffer, current_entry->name, current_entry->name_len);
+        name_buffer[current_entry->name_len] = 0;
+        //printf("%s | %i\n", name_buffer, current_entry->inode);
+        if(strcmp(name, name_buffer) == 0) {
+            //printf("Found file %s\n", name);
+            found_inode = current_entry->inode;
+            break;
+        }
+        current_read += current_entry->rec_len;
+        current_entry = (struct ext2_dir_entry_2 *)((size_t)current_entry + current_entry->rec_len);
+    }
+    return found_inode;
 }
 
 
