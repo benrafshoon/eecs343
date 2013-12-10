@@ -41,22 +41,36 @@ int main(int argc, char ** argv) {
         bytes_read += bytes_to_read;
     }
 
+    //If we have read all the direct blocks and there are still bytes to read, read the single-level indirect blocks
     if(bytes_read < size) {
+        //Get the address of the data of the indirect block
         __u32 * block = get_block(fs, target_ino->i_block[EXT2_IND_BLOCK]);
+
+        //Get the address of the block immediately after the indirect block
+        //The byte before this is the last one we want to read
         __u32 * end_of_block = get_block(fs, target_ino->i_block[EXT2_IND_BLOCK] + 1);
         __u32 * current;
+        //Read each 32 bit block number in the contents of the indirect block
         for(current = block; current < end_of_block; current++) {
+            //Figure out how many bytes we still have left to read
             bytes_left = size - bytes_read;
+            //If theres none left, we're done
             if (bytes_left == 0) break;
+            //Only read as much data as the block contains
+            //if theres more, we'll read from the next block on the next iteration
             __u32 bytes_to_read = bytes_left > block_size ? block_size : bytes_left;
+            //Get the data block from the block number we just read from the indirect block
             void * block = get_block(fs, *current);
+            //Copy the contents of the data block to our buffer at the correct position
             memcpy(buf + bytes_read, block, bytes_to_read);
+            //Increment our bytes read counter so we know when we've read the entire file
             bytes_read += bytes_to_read;
         }
     }
 
     write(1, buf, bytes_read);
 
+    //Free the file buffer
     free(buf);
     return 0;
 }

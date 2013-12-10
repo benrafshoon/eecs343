@@ -17,7 +17,7 @@
 
 // Return a pointer to the primary superblock of a filesystem.
 struct ext2_super_block * get_super_block(void * fs) {
-
+    //Superblock is at a fixed offset
     return (struct ext2_super_block *)((size_t)fs + SUPERBLOCK_OFFSET);
 }
 
@@ -50,8 +50,9 @@ struct ext2_group_desc * get_block_group(void * fs, __u32 block_group_num) {
 // first one.
 struct ext2_inode * get_inode(void * fs, __u32 inode_num) {
     struct ext2_group_desc * block_group = get_block_group(fs, 0);
+    //The inode table starts at the block given in the bg_inode_table field of the block group
     struct ext2_inode * inode_table = (struct ext2_inode *) ((size_t)fs + get_block_size(fs) * block_group->bg_inode_table);
-    return inode_table + inode_num - 1; //FUCK YOU INODES!! START AT 0 LIKE EVERYONE ELSE!!!!!!!
+    return inode_table + inode_num - 1;
 }
 
 
@@ -64,13 +65,15 @@ struct ext2_inode * get_inode(void * fs, __u32 inode_num) {
 // split_path("/a/b/c") will return {"a", "b", "c"}.
 //
 // This one's a freebie.
+// Modified so that this will now return a NULL terminated list of strings
+// ie split_path("a/b/c") returns {"a", "b", "c", NULL} so that we know where the end of the list is
 char ** split_path(char * path) {
     int num_slashes = 0;
     for (char * slash = path; slash != NULL; slash = strchr(slash + 1, '/')) {
         num_slashes++;
     }
     // Copy out each piece by advancing two pointers (piece_start and slash).
-    char ** parts = (char **) calloc(num_slashes + 1, sizeof(char *)); //Add an extra item so we can null terminate
+    char ** parts = (char **) calloc(num_slashes + 1, sizeof(char *)); //Add an extra item so we can NULL terminate
     char * piece_start = path + 1;
     int i = 0;
     for (char * slash = strchr(path + 1, '/');
@@ -85,10 +88,13 @@ char ** split_path(char * path) {
     // Get the last piece.
     parts[i] = (char *) calloc(strlen(piece_start) + 1, sizeof(char));
     strncpy(parts[i], piece_start, strlen(piece_start));
-    parts[num_slashes] = 0;
+
+    //NULL terminate the list
+    parts[num_slashes] = NULL;
     return parts;
 }
 
+//Free the space allocated by split_path
 void free_split_path(char** split_path) {
     char** current_path = split_path;
     while(*current_path != 0) {
@@ -111,25 +117,29 @@ struct ext2_inode * get_root_dir(void * fs) {
 __u32 get_inode_from_dir(void * fs, struct ext2_inode * dir,
         char * name) {
     //Assumes that the directory list does not span more than one block
-
+    //Get the block that the directory inode points to
     struct ext2_dir_entry_2 * current_entry = (struct ext2_dir_entry_2 *)get_block(fs, dir->i_block[0]);
-    __u32 total_size = dir->i_size;
-    __u32 current_read = 0;
+    __u32 total_size = dir->i_size; //The total size of the directory in bytes
+    __u32 current_read = 0; //Bytes read counter
+    //The max size of the name is 256 bytes, so allocate a 257 bytes buffer to include a NULL terminating character
     char name_buffer[257];
-    __u32 found_inode = 0;
+    __u32 found_inode = 0; //The inode of the file we are searching for
     while(current_read < total_size) {
+        //Fetch and null terminate the name string
         memcpy(name_buffer, current_entry->name, current_entry->name_len);
         name_buffer[current_entry->name_len] = 0;
-        //printf("%s | %i\n", name_buffer, current_entry->inode);
+
         if(strcmp(name, name_buffer) == 0) {
-            //printf("Found file %s\n", name);
             found_inode = current_entry->inode;
-            break;
+            break; //Stop searching once we find the inode that matches name
         }
+        //Update the bytes read counter
         current_read += current_entry->rec_len;
+
+        //Go to the next directory entry in the list
         current_entry = (struct ext2_dir_entry_2 *)((size_t)current_entry + current_entry->rec_len);
     }
-    return found_inode;
+    return found_inode; //Will be 0 if we didn't find the matching filename
 }
 
 
@@ -139,22 +149,23 @@ __u32 get_inode_by_path(void * fs, char * path) {
     char ** path_components = split_path(path);
     struct ext2_inode * current_inode = get_root_dir(fs);
     __u32 current_inode_num = 0;
-
+    //Traverse the NULL terminated list of separated path components
     char** current_path_component = path_components;
-    while(*current_path_component != 0) {
+    while(*current_path_component != NULL) {
+        //Search for the inode of the next file inside of the current directory
+        //***NOTE*** assumes that each file found except for the last is a directory
         current_inode_num = get_inode_from_dir(fs, current_inode, *current_path_component);
         if(current_inode_num == 0) {
             break;
         }
-        //printf("%s %i\n", path_components[i], current_inode_num);
+        //Get the inode from the inode number we just found
         current_inode = get_inode(fs, current_inode_num);
 
         current_path_component++;
     }
 
+    //Free space allocated by split_path
     free_split_path(path_components);
     return current_inode_num;
-    // FIXME: Uses reference implementation.
-    //_ref_get_inode_by_path(fs, path);
 }
 

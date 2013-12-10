@@ -1,0 +1,26 @@
+EXT2 FILESYSTEM READ-ONLY DRIVER
+
+NAME
+    ext2cat - A read-only driver for the ext2 file system
+SYNOPSIS
+    ext2cat image file_path
+DESCRIPTION
+    ext2cat reads files from an ext2 file system image and outputs the file to stdout.
+OPTIONS
+    image
+        The path to the ext2 file system image to be read from
+    file_path
+        The path to the file within the file system image to read and output
+DESIGN
+    ext2cat
+        Parses the user input, loads the file system image, and finds the file the user specified.  Once the file has been
+        found in the image, the blocks are output to stdout.  ext2cat can read direct blocks and single-level indirect blocks.
+        Data from double-level and triple-level indirect blocks will not be read, so the file output is truncated after reading
+        the end of the single-level indirect blocks.
+    ext2_access
+        Contains helper functions used by ext2cat.  Contains the code that parses the user-specified file path and traverses the
+        path, going through the inode and directory contents of each level of the path until it finds the specified file.  Also contains
+        code to find the superblock, individual blocks, and inodes from the file image.
+
+VERIFICATION
+    Our program successfully passed the testsuite (110%) having been compiled with the ext2cat_sans_ref option.
