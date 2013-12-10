@@ -3,7 +3,7 @@ TEAM=`whoami`
 VERSION=`date +%Y%m%d%H%M%S`
 PROJ=ext2cat
 
-DELIVERY=ext2cat.c lib/ext2_access.c
+DELIVERY=ext2cat.c lib/ext2_access.c DOC
 ARCHIVE=${TEAM}-${VERSION}-${PROJ}.tar.gz
 OS=$(shell uname -s)
 ARCH=$(shell uname -m)
